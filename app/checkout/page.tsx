@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, Calendar, MapPin } from "lucide-react"
+import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -14,15 +14,20 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
-import type { Product, CartItem, CustomerInfo, ContactMethod, SelectedAddOn, Event } from "@/types/shop-types"
+import type { Product, CartItem, CustomerInfo, ContactMethod, CartAddOn, Event } from "@/types/shop-types"
 import { formatDate } from "@/lib/utils"
+import { fetchApi, getApiUrl } from "@/utils/api"
 
 export default function Checkout() {
   const router = useRouter()
   const [cart, setCart] = useState<CartItem[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [addons, setAddons] = useState<any[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [orderSubmitted, setOrderSubmitted] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   // Customer information state
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -52,6 +57,16 @@ export default function Checkout() {
       setCart(JSON.parse(savedCart))
     }
 
+    const savedProducts = localStorage.getItem("pastryProducts")
+    if (savedProducts) {
+      setProducts(JSON.parse(savedProducts))
+    }
+    
+    const savedAddons = localStorage.getItem("pastryAddons")
+    if (savedAddons) {
+      setAddons(JSON.parse(savedAddons))
+    }
+
     const savedEvents = localStorage.getItem("pastryEvents")
     if (savedEvents) {
       setEvents(JSON.parse(savedEvents))
@@ -61,14 +76,23 @@ export default function Checkout() {
   }, [])
 
   // Check if cart has event-only items
-  const hasEventOnlyItems = cart.some((item) => item.product.eventOnly)
+  const hasEventOnlyItems = cart.some((item) => {
+    const product = products.find(p => p.id === item.productId)
+    return product?.eventOnly
+  })
 
   // Get unique event IDs from event-only items
   const eventOnlyEventIds = Array.from(
     new Set(
       cart
-        .filter((item) => item.product.eventOnly)
-        .map((item) => item.product.eventId)
+        .filter((item) => {
+          const product = products.find(p => p.id === item.productId)
+          return product?.eventOnly
+        })
+        .map((item) => {
+          const product = products.find(p => p.id === item.productId)
+          return product?.eventId
+        })
         .filter(Boolean) as number[],
     ),
   )
@@ -88,10 +112,14 @@ export default function Checkout() {
   }, [hasEventOnlyItems, eventOnlyEventIds, customerInfo.eventId])
 
   // Calculate item price including add-ons
-  const calculateItemPrice = (product: Product, productAddons: SelectedAddOn[]) => {
+  const calculateItemPrice = (productId: number, cartAddons: CartAddOn[]) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return 0
+    
     const basePrice = product.price
-    const addonsPrice = productAddons.reduce((sum, addon) => {
-      return sum + addon.addon.price * addon.quantity
+    const addonsPrice = cartAddons.reduce((sum, cartAddon) => {
+      const addon = addons.find(a => a.id === cartAddon.addonId)
+      return sum + (addon?.price || 0) * cartAddon.quantity
     }, 0)
 
     return basePrice + addonsPrice
@@ -99,7 +127,7 @@ export default function Checkout() {
 
   // Calculate total price
   const totalPrice = cart.reduce((sum, item) => {
-    const itemPrice = calculateItemPrice(item.product, item.addons)
+    const itemPrice = calculateItemPrice(item.productId, item.addons)
     return sum + itemPrice * item.quantity
   }, 0)
 
@@ -183,7 +211,7 @@ export default function Checkout() {
       email: !customerInfo.email.trim() || !/^\S+@\S+\.\S+$/.test(customerInfo.email),
       phone: !customerInfo.phone.trim(),
       deliveryAddress: customerInfo.delivery && !customerInfo.deliveryAddress.trim(),
-      eventId: customerInfo.pickupAtEvent && !customerInfo.eventId,
+      eventId: customerInfo.pickupAtEvent && !customerInfo.eventId ? true : false,
     }
 
     setErrors(newErrors)
@@ -191,28 +219,38 @@ export default function Checkout() {
   }
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
+    
     if (validateForm()) {
-      // Create order object with timestamp
-      const order = {
-        id: Date.now().toString(),
-        date: new Date().toISOString(),
-        items: cart,
-        customer: customerInfo,
-        total: totalPrice,
-        eventId: customerInfo.eventId,
+      setIsSubmitting(true)
+      setSubmitError(null)
+      
+      try {
+        // Prepare order data for API
+        const orderData = {
+          items: cart,
+          customer: customerInfo,
+          eventId: customerInfo.eventId
+        }
+        
+        // Send order to API
+        const response = await fetchApi('orders', {
+          method: 'POST',
+          body: JSON.stringify(orderData)
+        })
+        
+        // Clear cart from localStorage
+        localStorage.removeItem("pastryCart")
+        
+        // Show success message
+        setOrderSubmitted(true)
+      } catch (error) {
+        console.error('Error submitting order:', error)
+        setSubmitError('Failed to submit order. Please try again or contact us directly.')
+      } finally {
+        setIsSubmitting(false)
       }
-
-      // Save order to localStorage
-      const existingOrders = JSON.parse(localStorage.getItem("pastryOrders") || "[]")
-      const updatedOrders = [...existingOrders, order]
-      localStorage.setItem("pastryOrders", JSON.stringify(updatedOrders))
-
-      // Clear cart and show success message
-      localStorage.removeItem("pastryCart")
-      setOrderSubmitted(true)
     }
   }
 
@@ -285,9 +323,9 @@ export default function Checkout() {
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="font-medium">
-                          {item.product.name} × {item.quantity}
+                          {products.find(p => p.id === item.productId)?.name} × {item.quantity}
                         </p>
-                        {item.product.eventOnly && (
+                        {products.find(p => p.id === item.productId)?.eventOnly && (
                           <Badge variant="outline" className="text-xs">
                             Event Only
                           </Badge>
@@ -296,7 +334,7 @@ export default function Checkout() {
                       {item.notes && <p className="text-sm text-muted-foreground italic">Note: {item.notes}</p>}
                     </div>
                     <p className="font-medium">
-                      ${(calculateItemPrice(item.product, item.addons) * item.quantity).toFixed(2)}
+                      ${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}
                     </p>
                   </div>
 
@@ -307,11 +345,11 @@ export default function Checkout() {
                         <div key={addonIndex} className="flex justify-between text-sm mt-1">
                           <div>
                             <p className="text-sm">
-                              {addon.addon.name} × {addon.quantity}
+                              {addons.find(a => a.id === addon.addonId)?.name} × {addon.quantity}
                             </p>
                             {addon.notes && <p className="text-xs text-muted-foreground italic">Note: {addon.notes}</p>}
                           </div>
-                          <p className="text-sm">${(addon.addon.price * addon.quantity).toFixed(2)}</p>
+                          <p className="text-sm">${(addons.find(a => a.id === addon.addonId)?.price || 0 * addon.quantity).toFixed(2)}</p>
                         </div>
                       ))}
                     </div>
@@ -346,6 +384,14 @@ export default function Checkout() {
         <div>
           <h2 className="text-2xl font-bold mb-4">Your Information</h2>
           <Card>
+            {submitError && (
+              <div className="p-4 border-b border-red-200 bg-red-50">
+                <div className="flex items-center gap-2 text-red-700">
+                  <AlertTriangle className="h-5 w-5" />
+                  <p>{submitError}</p>
+                </div>
+              </div>
+            )}
             <CardContent className="p-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
@@ -503,8 +549,8 @@ export default function Checkout() {
                   </div>
                 </div>
 
-                <Button type="submit" className="w-full mt-6">
-                  Submit Order
+                <Button type="submit" className="w-full mt-6" disabled={isSubmitting}>
+                  {isSubmitting ? "Processing..." : "Submit Order"}
                 </Button>
               </form>
             </CardContent>

@@ -42,6 +42,13 @@ export type SelectedAddOn = {
   notes: string
 }
 
+// Cart add-on type definition (using ID instead of full object)
+export type CartAddOn = {
+  addonId: number
+  quantity: number
+  notes: string
+}
+
 // Event type definition
 export type Event = {
   id: number
@@ -57,10 +64,10 @@ export type Event = {
 
 // Cart item type definition
 export type CartItem = {
-  product: Product
+  productId: number
   quantity: number
   notes: string
-  addons: SelectedAddOn[]
+  addons: CartAddOn[]
 }
 
 // Banner type definition

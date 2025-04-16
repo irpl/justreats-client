@@ -53,7 +53,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import type { Product, Order, Banner, ContactInfo, AddOn, SelectedAddOn, Event } from "@/types/shop-types"
+import type { Product, Order, Banner, ContactInfo, AddOn, SelectedAddOn, Event, CartAddOn } from "@/types/shop-types"
 
 // Add imports for the useInfiniteScroll hook
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll"
@@ -194,19 +194,22 @@ export default function AdminDashboard() {
     pageSize: 9,
     fetchFunction: async (page, size) => {
       try {
-        return await fetchApi<Product[]>(`products?page=${page}&size=${size}`);
+        // Get the auth token from localStorage
+        const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+        if (!auth.isAuthenticated) return [];
+        
+        return await fetchApi<Product[]>(`products?page=${page}&size=${size}`, {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
+        });
       } catch (error) {
         console.error("Error fetching products:", error)
         // Fallback to localStorage if API fails
-        const savedProducts = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
-        // Return a limited subset to simulate pagination
-        const start = (page - 1) * size // Adjusted for 1-based pagination
-        const end = start + size
-        return savedProducts.slice(start, end)
+        return [];
       }
     },
-    enabled: !isLoading,
-  })
+  });
 
   // Replace the add-ons state with infinite scroll hook
   const {
@@ -219,7 +222,15 @@ export default function AdminDashboard() {
     pageSize: 9,
     fetchFunction: async (page, size) => {
       try {
-        return await fetchApi<AddOn[]>(`addons?page=${page}&size=${size}`);
+        // Get the auth token from localStorage
+        const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+        if (!auth.isAuthenticated) return [];
+        
+        return await fetchApi<AddOn[]>(`addons?page=${page}&size=${size}`, {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
+        });
       } catch (error) {
         console.error("Error fetching add-ons:", error)
         // Fallback to localStorage
@@ -234,7 +245,6 @@ export default function AdminDashboard() {
         return storedAddons.slice(start, end)
       }
     },
-    enabled: !isLoading,
   })
 
   // Replace the events state with infinite scroll hook
@@ -248,7 +258,15 @@ export default function AdminDashboard() {
     pageSize: 6,
     fetchFunction: async (page, size) => {
       try {
-        return await fetchApi<Event[]>(`events?page=${page}&size=${size}`);
+        // Get the auth token from localStorage
+        const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+        if (!auth.isAuthenticated) return [];
+        
+        return await fetchApi<Event[]>(`events?page=${page}&size=${size}`, {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
+        });
       } catch (error) {
         console.error("Error fetching events:", error)
         // Fallback to localStorage
@@ -263,7 +281,6 @@ export default function AdminDashboard() {
         return storedEvents.slice(start, end)
       }
     },
-    enabled: !isLoading,
   })
 
   // Add event management state variables after the existing state declarations (around line 100)
@@ -328,7 +345,7 @@ export default function AdminDashboard() {
     price: false,
   })
 
-  // Update the useEffect to load banner and contact info from API
+  // Update the useEffect to load banner, contact info, and orders from API
   useEffect(() => {
     // Check authentication
     const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
@@ -337,14 +354,91 @@ export default function AdminDashboard() {
       return
     }
 
-    // Load orders
-    const savedOrders = JSON.parse(localStorage.getItem("pastryOrders") || "[]")
-    setOrders(savedOrders)
+    // Function to fetch orders from API with auth token
+    const fetchOrders = async () => {
+      try {
+        const data = await fetchApi<Order[]>("orders", {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
+        });
+        setOrders(data);
+        
+        // Calculate product summary from API orders
+        const summary: Record<string, number> = {}
+        data.forEach((order: Order) => {
+          order.items.forEach((item) => {
+            // Find the product by ID
+            const product = products.find(p => p.id === item.productId)
+            if (product) {
+              const productName = product.name
+              if (summary[productName]) {
+                summary[productName] += item.quantity
+              } else {
+                summary[productName] = item.quantity
+              }
+            }
+          })
+        })
+        setProductSummary(summary)
+
+        // Group orders by customer
+        const customerGrouped: Record<string, Order[]> = {}
+        data.forEach((order: Order) => {
+          const customerName = order.customer.name
+          if (customerGrouped[customerName]) {
+            customerGrouped[customerName].push(order)
+          } else {
+            customerGrouped[customerName] = [order]
+          }
+        })
+        setCustomerOrders(customerGrouped)
+      } catch (error) {
+        console.error("Error fetching orders:", error)
+        // Fallback to localStorage if API fails
+        const savedOrders = JSON.parse(localStorage.getItem("pastryOrders") || "[]")
+        setOrders(savedOrders)
+        
+        // Calculate product summary from localStorage
+        const summary: Record<string, number> = {}
+        savedOrders.forEach((order: Order) => {
+          order.items.forEach((item) => {
+            // Find the product by ID
+            const product = products.find(p => p.id === item.productId)
+            if (product) {
+              const productName = product.name
+              if (summary[productName]) {
+                summary[productName] += item.quantity
+              } else {
+                summary[productName] = item.quantity
+              }
+            }
+          })
+        })
+        setProductSummary(summary)
+
+        // Group orders by customer
+        const customerGrouped: Record<string, Order[]> = {}
+        savedOrders.forEach((order: Order) => {
+          const customerName = order.customer.name
+          if (customerGrouped[customerName]) {
+            customerGrouped[customerName].push(order)
+          } else {
+            customerGrouped[customerName] = [order]
+          }
+        })
+        setCustomerOrders(customerGrouped)
+      }
+    };
 
     // Load banner settings from API
     const fetchBanner = async () => {
       try {
-        const data = await fetchApi<Banner>("banner");
+        const data = await fetchApi<Banner>("banner", {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
+        });
         setBanner(data);
       } catch (error) {
         console.error("Error fetching banner:", error)
@@ -361,7 +455,11 @@ export default function AdminDashboard() {
     // Load contact info from API
     const fetchContactInfo = async () => {
       try {
-        const data = await fetchApi<ContactInfo>("contact");
+        const data = await fetchApi<ContactInfo>("contact", {
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
+        });
         setContactInfo(data);
       } catch (error) {
         console.error("Error fetching contact info:", error)
@@ -375,37 +473,12 @@ export default function AdminDashboard() {
       }
     }
 
-    fetchBanner()
-    fetchContactInfo()
-
-    // Calculate product summary
-    const summary: Record<string, number> = {}
-    savedOrders.forEach((order: Order) => {
-      order.items.forEach((item) => {
-        const productName = item.product.name
-        if (summary[productName]) {
-          summary[productName] += item.quantity
-        } else {
-          summary[productName] = item.quantity
-        }
-      })
-    })
-    setProductSummary(summary)
-
-    // Group orders by customer
-    const customerGrouped: Record<string, Order[]> = {}
-    savedOrders.forEach((order: Order) => {
-      const customerName = order.customer.name
-      if (customerGrouped[customerName]) {
-        customerGrouped[customerName].push(order)
-      } else {
-        customerGrouped[customerName] = [order]
-      }
-    })
-    setCustomerOrders(customerGrouped)
-
-    setIsLoading(false)
-  }, [router])
+    fetchOrders();
+    fetchBanner();
+    fetchContactInfo();
+    
+    setIsLoading(false);
+  }, [router, products])
 
   const [productSummary, setProductSummary] = useState<Record<string, number>>({})
   const [customerOrders, setCustomerOrders] = useState<Record<string, Order[]>>({})
@@ -420,10 +493,14 @@ export default function AdminDashboard() {
   }
 
   // Calculate item price including add-ons
-  const calculateItemPrice = (product: Product, productAddons: SelectedAddOn[]) => {
+  const calculateItemPrice = (productId: number, cartAddons: CartAddOn[]) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return 0
+    
     const basePrice = product.price
-    const addonsPrice = productAddons.reduce((sum, addon) => {
-      return sum + addon.addon.price * addon.quantity
+    const addonsPrice = cartAddons.reduce((sum, cartAddon) => {
+      const addon = addons.find(a => a.id === cartAddon.addonId)
+      return sum + (addon?.price || 0) * cartAddon.quantity
     }, 0)
 
     return basePrice + addonsPrice
@@ -545,6 +622,14 @@ export default function AdminDashboard() {
     }
 
     try {
+      // Get the auth token from localStorage
+      const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+      if (!auth.isAuthenticated) {
+        alert("Authentication required. Please log in again.")
+        router.push("/admin/login")
+        return
+      }
+
       let savedProduct;
 
       // Check if we're in edit mode or add mode
@@ -553,12 +638,18 @@ export default function AdminDashboard() {
         savedProduct = await fetchApi<Product>(`products/${currentProduct.id}`, {
           method: "PUT",
           body: JSON.stringify(productData),
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
         });
       } else {
         // Create new product - server will generate ID
         savedProduct = await fetchApi<Product>("products", {
           method: "POST",
           body: JSON.stringify(productData),
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
         });
       }
 
@@ -577,8 +668,19 @@ export default function AdminDashboard() {
   // Update the deleteProduct function
   const deleteProduct = async (productId: number) => {
     try {
+      // Get the auth token from localStorage
+      const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+      if (!auth.isAuthenticated) {
+        alert("Authentication required. Please log in again.")
+        router.push("/admin/login")
+        return
+      }
+
       await fetchApi<void>(`products/${productId}`, {
         method: "DELETE",
+        headers: {
+          'Authorization': `Bearer ${auth.token}`
+        }
       });
 
       // Reset the products list to fetch updated data
@@ -666,6 +768,14 @@ export default function AdminDashboard() {
     }
 
     try {
+      // Get the auth token from localStorage
+      const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+      if (!auth.isAuthenticated) {
+        alert("Authentication required. Please log in again.")
+        router.push("/admin/login")
+        return
+      }
+
       let savedEvent;
 
       // Check if we're in edit mode or add mode
@@ -674,12 +784,18 @@ export default function AdminDashboard() {
         savedEvent = await fetchApi<Event>(`events/${currentEvent.id}`, {
           method: "PUT",
           body: JSON.stringify(eventData),
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
         });
       } else {
         // Create new event - server will generate ID
         savedEvent = await fetchApi<Event>("events", {
           method: "POST",
           body: JSON.stringify(eventData),
+          headers: {
+            'Authorization': `Bearer ${auth.token}`
+          }
         });
       }
 
@@ -711,6 +827,14 @@ export default function AdminDashboard() {
         return
       }
 
+      // Get the auth token from localStorage
+      const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+      if (!auth.isAuthenticated) {
+        alert("Authentication required. Please log in again.")
+        router.push("/admin/login")
+        return
+      }
+
       // Update products to remove event association
       try {
         for (const product of associatedProducts) {
@@ -723,27 +847,39 @@ export default function AdminDashboard() {
           await fetchApi<Product>(`products/${product.id}`, {
             method: "PUT",
             body: JSON.stringify(updatedProduct),
+            headers: {
+              'Authorization': `Bearer ${auth.token}`
+            }
           });
         }
       } catch (error) {
-        console.error("Error updating associated products:", error)
+        console.error("Error updating products:", error)
         alert("Failed to update associated products. Please try again.")
         return
       }
     }
 
     try {
+      // Get the auth token again since we're in a new scope
+      const auth = JSON.parse(localStorage.getItem("adminAuth") || "{}")
+      if (!auth.isAuthenticated) {
+        alert("Authentication required. Please log in again.")
+        router.push("/admin/login")
+        return
+      }
+      
       await fetchApi<void>(`events/${eventId}`, {
         method: "DELETE",
+        headers: {
+          'Authorization': `Bearer ${auth.token}`
+        }
       });
 
       // Reset the events list to fetch updated data
       resetEvents()
 
-      // Also reset products as they may have event associations
+      // Also reset products list in case there were associated products
       resetProducts()
-
-      alert("Event deleted successfully!")
     } catch (error) {
       console.error("Error deleting event:", error)
       alert("Failed to delete event. Please try again.")
@@ -1091,19 +1227,22 @@ export default function AdminDashboard() {
                             <CardContent className="p-4">
                               <div className="flex justify-between items-start mb-2">
                                 <div>
-                                  <p className="text-sm text-muted-foreground">Order #{order.id.slice(-4)}</p>
+                                  <p className="text-sm text-muted-foreground">Order #{order.id}</p>
                                   <p className="text-sm text-muted-foreground">{formatDate(order.date)}</p>
                                 </div>
                                 <Badge>${order.total.toFixed(2)}</Badge>
                               </div>
                               <Separator className="my-2" />
                               <div className="space-y-1">
-                                {order.items.map((item, idx) => (
-                                  <div key={idx} className="flex justify-between text-sm">
-                                    <span>{item.product.name}</span>
-                                    <span>x{item.quantity}</span>
-                                  </div>
-                                ))}
+                                {order.items.map((item, idx) => {
+                                  const product = products.find(p => p.id === item.productId);
+                                  return product ? (
+                                    <div key={idx} className="flex justify-between text-sm">
+                                      <span>{product.name}</span>
+                                      <span>x{item.quantity}</span>
+                                    </div>
+                                  ) : null;
+                                })}
                               </div>
                             </CardContent>
                           </Card>
@@ -1132,7 +1271,7 @@ export default function AdminDashboard() {
                     <Card key={order.id} className="overflow-hidden">
                       <CardHeader className="bg-muted/50">
                         <div className="flex justify-between items-center">
-                          <CardTitle className="text-lg">Order #{order.id.slice(-4)}</CardTitle>
+                          <CardTitle className="text-lg">Order #{order.id}</CardTitle>
                           <Badge>${order.total.toFixed(2)}</Badge>
                         </div>
                         <CardDescription>{formatDate(order.date)}</CardDescription>
@@ -1173,43 +1312,53 @@ export default function AdminDashboard() {
                           <div>
                             <h4 className="font-semibold mb-2">Order Items</h4>
                             <div className="space-y-3">
-                              {order.items.map((item, idx) => (
-                                <div key={idx}>
-                                  <div className="flex justify-between">
-                                    <div>
-                                      <p className="font-medium">{item.product.name}</p>
-                                      <p className="text-sm text-muted-foreground">
-                                        ${calculateItemPrice(item.product, item.addons).toFixed(2)} x {item.quantity}
+                              {order.items.map((item, idx) => {
+                                const product = products.find(p => p.id === item.productId);
+                                if (!product) return null;
+                                
+                                return (
+                                  <div key={idx}>
+                                    <div className="flex justify-between">
+                                      <div>
+                                        <p className="font-medium">{product.name}</p>
+                                        <p className="text-sm text-muted-foreground">
+                                          ${calculateItemPrice(item.productId, item.addons).toFixed(2)} x {item.quantity}
+                                        </p>
+                                        {item.notes && <p className="text-sm italic">Note: {item.notes}</p>}
+                                      </div>
+                                      <p className="font-medium">
+                                        ${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}
                                       </p>
-                                      {item.notes && <p className="text-sm italic">Note: {item.notes}</p>}
                                     </div>
-                                    <p className="font-medium">
-                                      ${(calculateItemPrice(item.product, item.addons) * item.quantity).toFixed(2)}
-                                    </p>
-                                  </div>
 
-                                  {/* Display add-ons */}
-                                  {item.addons && item.addons.length > 0 && (
-                                    <div className="mt-2 pl-4 border-l-2 border-muted">
-                                      {item.addons.map((addon, addonIdx) => (
-                                        <div key={addonIdx} className="flex justify-between text-sm mt-1">
-                                          <div>
-                                            <p className="text-sm">
-                                              {addon.addon.name} × {addon.quantity}
-                                            </p>
-                                            {addon.notes && (
-                                              <p className="text-xs text-muted-foreground italic">
-                                                Note: {addon.notes}
-                                              </p>
-                                            )}
-                                          </div>
-                                          <p className="text-sm">${(addon.addon.price * addon.quantity).toFixed(2)}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                                    {/* Display add-ons */}
+                                    {item.addons && item.addons.length > 0 && (
+                                      <div className="mt-2 pl-4 border-l-2 border-muted">
+                                        {item.addons.map((cartAddon, addonIdx) => {
+                                          const addon = addons.find(a => a.id === cartAddon.addonId);
+                                          if (!addon) return null;
+                                          
+                                          return (
+                                            <div key={addonIdx} className="flex justify-between text-sm mt-1">
+                                              <div>
+                                                <p className="text-sm">
+                                                  {addon.name} × {cartAddon.quantity}
+                                                </p>
+                                                {cartAddon.notes && (
+                                                  <p className="text-xs text-muted-foreground italic">
+                                                    Note: {cartAddon.notes}
+                                                  </p>
+                                                )}
+                                              </div>
+                                              <p className="text-sm">${(addon.price * cartAddon.quantity).toFixed(2)}</p>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                               <Separator className="my-2" />
                               <div className="flex justify-between font-bold">
                                 <p>Total</p>

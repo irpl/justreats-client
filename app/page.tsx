@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   Instagram,
   Mail,
@@ -15,9 +15,13 @@ import {
   Filter,
   CalendarDays,
   MapPin,
+  CreditCard,
+  ChevronRight,
+  Info,
+  AlertTriangle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,13 +29,20 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { Badge } from "@/components/ui/badge"
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { EventBanner } from "@/components/event-banner"
-import type { Product, CartItem, Banner, ContactInfo, AddOn, SelectedAddOn, Event } from "@/types/shop-types"
-
-// Add imports for the useInfiniteScroll hook
+import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer"
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll"
-
-// Add import for API utility
 import { fetchApi, getApiUrl } from "@/utils/api"
+import { LoadingSpinner } from "@/components/loading-spinner"
+import type { Product, CartItem, Banner, ContactInfo, AddOn, SelectedAddOn, Event, CartAddOn } from "@/types/shop-types"
 
 // Default products if none exist in localStorage
 const defaultProducts: Product[] = [
@@ -331,10 +342,42 @@ export default function Home() {
   // Update the useEffect to only handle cart, banner, and contact info
   useEffect(() => {
     // Load cart from localStorage
-    const savedCart = localStorage.getItem("pastryCart")
-    if (savedCart) {
-      setCart(JSON.parse(savedCart))
+    const loadCart = () => {
+      if (typeof window !== "undefined") {
+        const savedCart = localStorage.getItem("pastryCart")
+        if (savedCart) {
+          try {
+            const parsedCart = JSON.parse(savedCart)
+            
+            // Convert from old format to new format if needed
+            const convertedCart = parsedCart.map((item: any) => {
+              // If already using the new format
+              if (item.productId) {
+                return item
+              }
+              
+              // Convert from old format (with full objects) to new format (with IDs)
+              return {
+                productId: item.product.id,
+                quantity: item.quantity,
+                notes: item.notes,
+                addons: item.addons.map((addon: any) => ({
+                  addonId: addon.addon.id,
+                  quantity: addon.quantity,
+                  notes: addon.notes
+                }))
+              }
+            })
+            
+            setCart(convertedCart)
+          } catch (error) {
+            console.error("Error parsing cart from localStorage:", error)
+          }
+        }
+      }
     }
+
+    loadCart()
 
     // Load banner settings from API
     const fetchBanner = async () => {
@@ -465,7 +508,7 @@ export default function Home() {
     if (quantity <= 0) return
 
     // Check if product already exists in cart
-    const existingItemIndex = cart.findIndex((item) => item.product.id === product.id)
+    const existingItemIndex = cart.findIndex((item) => item.productId === product.id)
 
     let updatedCart
     if (existingItemIndex >= 0) {
@@ -475,17 +518,25 @@ export default function Home() {
         ...updatedCart[existingItemIndex],
         quantity,
         notes: note,
-        addons: productAddons,
+        addons: productAddons.map(addon => ({
+          addonId: addon.addon.id,
+          quantity: addon.quantity,
+          notes: addon.notes
+        })),
       }
     } else {
       // Add new item
       updatedCart = [
         ...cart,
         {
-          product,
+          productId: product.id,
           quantity,
           notes: note,
-          addons: productAddons,
+          addons: productAddons.map(addon => ({
+            addonId: addon.addon.id,
+            quantity: addon.quantity,
+            notes: addon.notes
+          })),
         },
       ]
     }
@@ -501,10 +552,14 @@ export default function Home() {
   }
 
   // Calculate item price including add-ons
-  const calculateItemPrice = (product: Product, productAddons: SelectedAddOn[]) => {
+  const calculateItemPrice = (productId: number, cartAddons: CartAddOn[]) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return 0
+    
     const basePrice = product.price
-    const addonsPrice = productAddons.reduce((sum, addon) => {
-      return sum + addon.addon.price * addon.quantity
+    const addonsPrice = cartAddons.reduce((sum, cartAddon) => {
+      const addon = addons.find(a => a.id === cartAddon.addonId)
+      return sum + (addon?.price || 0) * cartAddon.quantity
     }, 0)
 
     return basePrice + addonsPrice
@@ -512,7 +567,7 @@ export default function Home() {
 
   // Calculate total price
   const totalPrice = cart.reduce((sum, item) => {
-    const itemPrice = calculateItemPrice(item.product, item.addons)
+    const itemPrice = calculateItemPrice(item.productId, item.addons)
     return sum + itemPrice * item.quantity
   }, 0)
 
@@ -611,45 +666,55 @@ export default function Home() {
                   <p className="text-muted-foreground text-center py-6">Your cart is empty</p>
                 ) : (
                   <>
-                    {cart.map((item, index) => (
-                      <div key={index} className="flex flex-col border-b pb-4">
-                        <div className="flex justify-between">
-                          <div>
-                            <h3 className="font-medium">{item.product.name}</h3>
-                            <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                            {item.notes && <p className="text-sm italic mt-1">Note: {item.notes}</p>}
-                            {item.product.eventOnly && (
-                              <Badge variant="outline" className="mt-1">
-                                Event Pickup Only
-                              </Badge>
-                            )}
+                    {cart.map((item, index) => {
+                      const product = products.find(p => p.id === item.productId);
+                      if (!product) return null;
+                      
+                      return (
+                        <div key={index} className="flex flex-col border-b pb-4">
+                          <div className="flex justify-between">
+                            <div>
+                              <h3 className="font-medium">{product.name}</h3>
+                              <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                              {item.notes && <p className="text-sm italic mt-1">Note: {item.notes}</p>}
+                              {product.eventOnly && (
+                                <Badge variant="outline" className="mt-1">
+                                  Event Pickup Only
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p>${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}</p>
+                              <button onClick={() => removeFromCart(index)} className="text-sm text-red-500 mt-1">
+                                Remove
+                              </button>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p>${(calculateItemPrice(item.product, item.addons) * item.quantity).toFixed(2)}</p>
-                            <button onClick={() => removeFromCart(index)} className="text-sm text-red-500 mt-1">
-                              Remove
-                            </button>
-                          </div>
-                        </div>
 
-                        {item.addons.length > 0 && (
-                          <div className="mt-2 pl-4 border-l-2 border-muted">
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Add-ons:</p>
-                            {item.addons.map((addon, addonIndex) => (
-                              <div key={addonIndex} className="flex justify-between text-sm">
-                                <div>
-                                  <p className="text-sm">
-                                    {addon.addon.name} (x{addon.quantity})
-                                  </p>
-                                  {addon.notes && <p className="text-xs italic">Note: {addon.notes}</p>}
-                                </div>
-                                <p>${(addon.addon.price * addon.quantity).toFixed(2)}</p>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                          {item.addons.length > 0 && (
+                            <div className="mt-2 pl-4 border-l-2 border-muted">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Add-ons:</p>
+                              {item.addons.map((cartAddon, addonIndex) => {
+                                const addon = addons.find(a => a.id === cartAddon.addonId);
+                                if (!addon) return null;
+                                
+                                return (
+                                  <div key={addonIndex} className="flex justify-between text-sm">
+                                    <div>
+                                      <p className="text-sm">
+                                        {addon.name} (x{cartAddon.quantity})
+                                      </p>
+                                      {cartAddon.notes && <p className="text-xs italic">Note: {cartAddon.notes}</p>}
+                                    </div>
+                                    <p>${(addon.price * cartAddon.quantity).toFixed(2)}</p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     <div className="flex justify-between font-bold pt-2">
                       <span>Total:</span>
                       <span>${totalPrice.toFixed(2)}</span>
@@ -847,7 +912,14 @@ export default function Home() {
             {getFilteredProducts().map((product) => {
               const applicableAddons = getApplicableAddons(product)
               const productAddons = selectedAddons[product.id] || []
-              const itemPrice = calculateItemPrice(product, productAddons)
+              const itemPrice = calculateItemPrice(
+                product.id, 
+                productAddons.map(addon => ({
+                  addonId: addon.addon.id,
+                  quantity: addon.quantity,
+                  notes: addon.notes
+                }))
+              )
 
               return (
                 <Card key={product.id} className={`overflow-hidden ${product.eventOnly ? "border-primary/30" : ""}`}>
