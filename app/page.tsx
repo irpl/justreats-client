@@ -339,10 +339,10 @@ export default function Home() {
   const [selectedAddons, setSelectedAddons] = useState<Record<number, SelectedAddOn[]>>({})
 
   // Load products and cart from localStorage on component mount
-  // Update the useEffect to only handle cart, banner, and contact info
+  // Update the useEffect to handle cart and its dependencies
   useEffect(() => {
     // Load cart from localStorage
-    const loadCart = () => {
+    const loadCart = async () => {
       if (typeof window !== "undefined") {
         const savedCart = localStorage.getItem("pastryCart")
         if (savedCart) {
@@ -368,6 +368,54 @@ export default function Home() {
                 }))
               }
             })
+            
+            // Extract unique product IDs and addon IDs from cart
+            const productIds = new Set(convertedCart.map((item: CartItem) => item.productId))
+            const addonIds = new Set<number>()
+            convertedCart.forEach((item: CartItem) => {
+              item.addons.forEach(addon => {
+                addonIds.add(addon.addonId)
+              })
+            })
+            
+            // Make sure we have the required products and addons in state
+            const storedProducts = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
+            const storedAddons = JSON.parse(localStorage.getItem("pastryAddons") || "[]")
+            
+            // Update localStorage with any products and addons that we have in memory
+            let productsNeedUpdate = false
+            let addonsNeedUpdate = false
+            
+            // Add any missing products
+            productIds.forEach(productId => {
+              if (!storedProducts.some((p: Product) => p.id === productId)) {
+                const productFromDefault = defaultProducts.find(p => p.id === productId)
+                if (productFromDefault) {
+                  storedProducts.push(productFromDefault)
+                  productsNeedUpdate = true
+                }
+              }
+            })
+            
+            // Add any missing addons
+            addonIds.forEach(addonId => {
+              if (!storedAddons.some((a: AddOn) => a.id === addonId)) {
+                const addonFromDefault = defaultAddons.find(a => a.id === addonId)
+                if (addonFromDefault) {
+                  storedAddons.push(addonFromDefault)
+                  addonsNeedUpdate = true
+                }
+              }
+            })
+            
+            // Save updated products and addons to localStorage if needed
+            if (productsNeedUpdate) {
+              localStorage.setItem("pastryProducts", JSON.stringify(storedProducts))
+            }
+            
+            if (addonsNeedUpdate) {
+              localStorage.setItem("pastryAddons", JSON.stringify(storedAddons))
+            }
             
             setCart(convertedCart)
           } catch (error) {
@@ -541,8 +589,34 @@ export default function Home() {
       ]
     }
 
+    // Store the cart in state
     setCart(updatedCart)
-    // Save to localStorage
+    
+    // Ensure the product is saved in localStorage
+    const savedProducts = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
+    if (!savedProducts.some((p: Product) => p.id === product.id)) {
+      savedProducts.push(product)
+      localStorage.setItem("pastryProducts", JSON.stringify(savedProducts))
+    }
+    
+    // Ensure all the addons are saved in localStorage
+    if (productAddons.length > 0) {
+      const savedAddons = JSON.parse(localStorage.getItem("pastryAddons") || "[]")
+      let addonsNeedUpdate = false
+      
+      productAddons.forEach(addonItem => {
+        if (!savedAddons.some((a: AddOn) => a.id === addonItem.addon.id)) {
+          savedAddons.push(addonItem.addon)
+          addonsNeedUpdate = true
+        }
+      })
+      
+      if (addonsNeedUpdate) {
+        localStorage.setItem("pastryAddons", JSON.stringify(savedAddons))
+      }
+    }
+    
+    // Save the updated cart to localStorage
     localStorage.setItem("pastryCart", JSON.stringify(updatedCart))
 
     // Reset quantity, notes, and selected add-ons for this product

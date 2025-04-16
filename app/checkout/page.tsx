@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle, User, UserPlus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,11 @@ export default function Checkout() {
   const [orderSubmitted, setOrderSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  
+  // State for saving customer info
+  const [saveInfo, setSaveInfo] = useState(false)
+  const [hasStoredInfo, setHasStoredInfo] = useState(false)
+  const [useStoredInfo, setUseStoredInfo] = useState(true)
 
   // Customer information state
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -54,22 +59,97 @@ export default function Checkout() {
   useEffect(() => {
     const savedCart = localStorage.getItem("pastryCart")
     if (savedCart) {
-      setCart(JSON.parse(savedCart))
+      try {
+        setCart(JSON.parse(savedCart))
+      } catch (error) {
+        console.error("Error parsing cart:", error)
+      }
     }
 
     const savedProducts = localStorage.getItem("pastryProducts")
     if (savedProducts) {
-      setProducts(JSON.parse(savedProducts))
+      try {
+        setProducts(JSON.parse(savedProducts))
+      } catch (error) {
+        console.error("Error parsing products:", error)
+      }
     }
     
     const savedAddons = localStorage.getItem("pastryAddons")
     if (savedAddons) {
-      setAddons(JSON.parse(savedAddons))
+      try {
+        setAddons(JSON.parse(savedAddons))
+      } catch (error) {
+        console.error("Error parsing addons:", error)
+      }
     }
 
     const savedEvents = localStorage.getItem("pastryEvents")
     if (savedEvents) {
-      setEvents(JSON.parse(savedEvents))
+      try {
+        setEvents(JSON.parse(savedEvents))
+      } catch (error) {
+        console.error("Error parsing events:", error)
+      }
+    }
+    
+    // Load saved customer info if available
+    const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
+    if (savedCustomerInfo) {
+      try {
+        const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
+        setCustomerInfo(parsedInfo)
+        setHasStoredInfo(true)
+        setUseStoredInfo(true)
+      } catch (error) {
+        console.error("Error parsing saved customer info:", error)
+      }
+    }
+
+    // Verify that all needed products and addons for the cart are available
+    if (savedCart && savedProducts && savedAddons) {
+      try {
+        const cartItems = JSON.parse(savedCart) as CartItem[]
+        const productList = JSON.parse(savedProducts) as Product[]
+        const addonsList = JSON.parse(savedAddons) as any[]
+        
+        // Check if any product in cart is missing from products list
+        const missingProducts = cartItems.filter(item => 
+          !productList.some(p => p.id === item.productId)
+        )
+        
+        if (missingProducts.length > 0) {
+          console.error("Some products in cart are missing from product list:", missingProducts)
+          // Remove problematic items from cart
+          const filteredCart = cartItems.filter(item => 
+            productList.some(p => p.id === item.productId)
+          )
+          setCart(filteredCart)
+          localStorage.setItem("pastryCart", JSON.stringify(filteredCart))
+        }
+        
+        // Check for missing addons
+        let hasInvalidAddons = false
+        
+        cartItems.forEach(item => {
+          const validAddons = item.addons.filter(addon => 
+            addonsList.some(a => a.id === addon.addonId)
+          )
+          
+          if (validAddons.length !== item.addons.length) {
+            hasInvalidAddons = true
+            // Update item with only valid addons
+            item.addons = validAddons
+          }
+        })
+        
+        if (hasInvalidAddons) {
+          setCart([...cartItems])
+          localStorage.setItem("pastryCart", JSON.stringify(cartItems))
+        }
+      } catch (error) {
+        console.error("Error validating cart data:", error)
+      }
     }
 
     setIsLoading(false)
@@ -204,6 +284,46 @@ export default function Checkout() {
     }))
   }
 
+  // Handle checkbox change for saving customer info
+  const handleSaveInfoChange = (checked: boolean) => {
+    setSaveInfo(checked)
+  }
+
+  // Toggle using stored info
+  const handleToggleStoredInfo = (useStored: boolean) => {
+    setUseStoredInfo(useStored)
+    
+    if (!useStored) {
+      // Reset form to empty values when user chooses not to use stored info
+      setCustomerInfo({
+        name: "",
+        email: "",
+        phone: "",
+        contactMethod: "phone",
+        delivery: false,
+        deliveryAddress: "",
+        pickupAtEvent: customerInfo.pickupAtEvent, // Keep event pickup setting as it depends on cart contents
+        eventId: customerInfo.eventId, // Keep event ID as it depends on cart contents
+      })
+    } else {
+      // Restore saved info from localStorage
+      const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
+      if (savedCustomerInfo) {
+        try {
+          const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
+          // Keep event-related settings from current state since they're contextual to this order
+          setCustomerInfo({
+            ...parsedInfo,
+            pickupAtEvent: customerInfo.pickupAtEvent,
+            eventId: customerInfo.eventId,
+          })
+        } catch (error) {
+          console.error("Error parsing saved customer info:", error)
+        }
+      }
+    }
+  }
+
   // Validate form
   const validateForm = () => {
     const newErrors = {
@@ -239,6 +359,11 @@ export default function Checkout() {
           method: 'POST',
           body: JSON.stringify(orderData)
         })
+        
+        // Save customer info if checkbox is checked
+        if (saveInfo) {
+          localStorage.setItem("pastryCustomerInfo", JSON.stringify(customerInfo))
+        }
         
         // Clear cart from localStorage
         localStorage.removeItem("pastryCart")
@@ -317,49 +442,96 @@ export default function Checkout() {
           <h2 className="text-2xl font-bold mb-4">Order Summary</h2>
           <Card>
             <CardContent className="p-6">
-              {cart.map((item, index) => (
-                <div key={index} className="py-3 border-b last:border-0">
-                  <div className="flex justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          {products.find(p => p.id === item.productId)?.name} × {item.quantity}
-                        </p>
-                        {products.find(p => p.id === item.productId)?.eventOnly && (
-                          <Badge variant="outline" className="text-xs">
-                            Event Only
-                          </Badge>
-                        )}
-                      </div>
-                      {item.notes && <p className="text-sm text-muted-foreground italic">Note: {item.notes}</p>}
-                    </div>
-                    <p className="font-medium">
-                      ${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-
-                  {/* Add-ons display */}
-                  {item.addons.length > 0 && (
-                    <div className="mt-2 pl-4 border-l-2 border-muted">
-                      {item.addons.map((addon, addonIndex) => (
-                        <div key={addonIndex} className="flex justify-between text-sm mt-1">
-                          <div>
-                            <p className="text-sm">
-                              {addons.find(a => a.id === addon.addonId)?.name} × {addon.quantity}
-                            </p>
-                            {addon.notes && <p className="text-xs text-muted-foreground italic">Note: {addon.notes}</p>}
-                          </div>
-                          <p className="text-sm">${(addons.find(a => a.id === addon.addonId)?.price || 0 * addon.quantity).toFixed(2)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <div className="grid grid-cols-8 text-sm font-medium text-muted-foreground border-b pb-2">
+                  <div className="col-span-4">Item</div>
+                  <div className="col-span-1 text-right">Unit</div>
+                  <div className="col-span-1 text-center">Qty</div>
+                  <div className="col-span-2 text-right">Subtotal</div>
                 </div>
-              ))}
 
-              <div className="flex justify-between pt-4 font-bold">
-                <p>Total</p>
-                <p>${totalPrice.toFixed(2)}</p>
+                {cart.map((item, index) => {
+                  const product = products.find(p => p.id === item.productId);
+                  if (!product) return null;
+                  
+                  const productBasePrice = product.price;
+                  const itemTotalWithAddons = calculateItemPrice(item.productId, item.addons) * item.quantity;
+                  
+                  return (
+                    <div key={index} className="space-y-3 pb-3 border-b last:border-0">
+                      {/* Product row */}
+                      <div className="grid grid-cols-8 items-start">
+                        <div className="col-span-4">
+                          <div className="flex items-start gap-2">
+                            <div>
+                              <p className="font-medium">{product.name}</p>
+                              {product.eventOnly && (
+                                <Badge variant="outline" className="text-xs mt-1">
+                                  Event Only
+                                </Badge>
+                              )}
+                              {item.notes && <p className="text-xs text-muted-foreground italic mt-1">Note: {item.notes}</p>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-span-1 text-right">
+                          ${productBasePrice.toFixed(2)}
+                        </div>
+                        <div className="col-span-1 text-center">
+                          {item.quantity}
+                        </div>
+                        <div className="col-span-2 text-right font-medium">
+                          ${(productBasePrice * item.quantity).toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Add-ons rows */}
+                      {item.addons.length > 0 && (
+                        <div className="space-y-2 pl-4 border-l-2 border-muted">
+                          {item.addons.map((cartAddon, addonIndex) => {
+                            const addon = addons.find(a => a.id === cartAddon.addonId);
+                            if (!addon) return null;
+                            
+                            return (
+                              <div key={addonIndex} className="grid grid-cols-8 items-start text-sm">
+                                <div className="col-span-4">
+                                  <p>+ {addon.name}</p>
+                                  {cartAddon.notes && <p className="text-xs text-muted-foreground italic">Note: {cartAddon.notes}</p>}
+                                </div>
+                                <div className="col-span-1 text-right">
+                                  ${addon.price.toFixed(2)}
+                                </div>
+                                <div className="col-span-1 text-center">
+                                  {cartAddon.quantity}
+                                </div>
+                                <div className="col-span-2 text-right">
+                                  ${(addon.price * cartAddon.quantity).toFixed(2)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          
+                          {/* Item total with add-ons */}
+                          <div className="grid grid-cols-8 items-start text-sm pt-1 border-t">
+                            <div className="col-span-4 font-medium">Item Total</div>
+                            <div className="col-span-2"></div>
+                            <div className="col-span-2 text-right font-medium">
+                              ${itemTotalWithAddons.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Order totals section */}
+                <div className="pt-3 border-t mt-3">
+                  <div className="flex justify-between text-lg font-bold">
+                    <p>Order Total</p>
+                    <p>${totalPrice.toFixed(2)}</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -393,6 +565,47 @@ export default function Checkout() {
               </div>
             )}
             <CardContent className="p-6">
+              {/* Show saved information toggle if there's stored info */}
+              {hasStoredInfo && (
+                <div className="mb-6 space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-md bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">{JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").name}</p>
+                        <p className="text-sm text-muted-foreground">{JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").email}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant={useStoredInfo ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => handleToggleStoredInfo(true)}
+                    >
+                      Use This Info
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-4 border rounded-md bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <UserPlus className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Use Different Information</p>
+                        <p className="text-sm text-muted-foreground">Fill in the form with new details</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant={!useStoredInfo ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => handleToggleStoredInfo(false)}
+                    >
+                      Use New Info
+                    </Button>
+                  </div>
+                  
+                  <Separator />
+                </div>
+              )}
+            
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Name *</Label>
@@ -429,6 +642,17 @@ export default function Checkout() {
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && <p className="text-red-500 text-sm mt-1">Phone number is required</p>}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="saveInfo" 
+                    checked={saveInfo} 
+                    onCheckedChange={handleSaveInfoChange}
+                  />
+                  <Label htmlFor="saveInfo" className="text-sm text-muted-foreground">
+                    Save my information for faster checkout next time
+                  </Label>
                 </div>
 
                 <Separator className="my-4" />
