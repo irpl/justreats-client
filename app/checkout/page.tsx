@@ -151,19 +151,6 @@ export default function Checkout() {
         console.error("Error validating cart data:", error)
       }
     }
-    
-    // Load saved customer info if available
-    const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
-    if (savedCustomerInfo) {
-      try {
-        const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
-        setCustomerInfo(parsedInfo)
-        setHasStoredInfo(true)
-        setUseStoredInfo(true)
-      } catch (error) {
-        console.error("Error parsing saved customer info:", error)
-      }
-    }
 
     setIsLoading(false)
   }, [])
@@ -337,45 +324,6 @@ export default function Checkout() {
     }))
   }
 
-  // Handle checkbox change for saving customer info
-  const handleSaveInfoChange = (checked: boolean) => {
-    setSaveInfo(checked)
-  }
-
-  // Toggle using stored info
-  const handleToggleStoredInfo = (useStored: boolean) => {
-    setUseStoredInfo(useStored)
-    
-    if (!useStored) {
-      // Reset form to empty values when user chooses not to use stored info
-      setCustomerInfo({
-        name: "",
-        email: "",
-        phone: "",
-        contactMethod: "phone",
-        delivery: false,
-        deliveryAddress: "",
-        pickupAtEvent: customerInfo.pickupAtEvent, // Keep event pickup setting as it depends on cart contents
-        eventId: customerInfo.eventId, // Keep event ID as it depends on cart contents
-      })
-    } else {
-      // Restore saved info from localStorage
-      const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
-      if (savedCustomerInfo) {
-        try {
-          const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
-          // Keep event-related settings from current state since they're contextual to this order
-          setCustomerInfo({
-            ...parsedInfo,
-            pickupAtEvent: customerInfo.pickupAtEvent,
-            eventId: customerInfo.eventId,
-          })
-        } catch (error) {
-          console.error("Error parsing saved customer info:", error)
-        }
-      }
-    }
-  }
 
   // Validate form
   const validateForm = () => {
