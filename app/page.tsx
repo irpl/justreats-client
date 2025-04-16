@@ -705,106 +705,109 @@ export default function Home() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold text-primary">Jus Treats</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
-            <Calendar className="h-5 w-5 mr-0" />
-            <span className="hidden sm:inline">Events</span>
-            {selectedEventId && (
-              <Badge className="ml-2" variant="secondary">
-                1
-              </Badge>
-            )}
-          </Button>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="relative">
-                <ShoppingBag className="h-5 w-5 mr-0" />
-                <span className="hidden sm:inline">Cart</span>
-                {cart.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Your Order</SheetTitle>
-                <SheetDescription>Review your items before checkout</SheetDescription>
-              </SheetHeader>
-              <div className="mt-6 space-y-4">
-                {cart.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-6">Your cart is empty</p>
-                ) : (
-                  <>
-                    {cart.map((item, index) => {
-                      const product = products.find(p => p.id === item.productId);
-                      if (!product) return null;
-                      
-                      return (
-                        <div key={index} className="flex flex-col border-b pb-4">
-                          <div className="flex justify-between">
-                            <div>
-                              <h3 className="font-medium">{product.name}</h3>
-                              <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                              {item.notes && <p className="text-sm italic mt-1">Note: {item.notes}</p>}
-                              {product.eventOnly && (
-                                <Badge variant="outline" className="mt-1">
-                                  Event Pickup Only
-                                </Badge>
-                              )}
+    <main className="container mx-auto px-4 pb-8">
+      {/* Sticky Navbar */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm py-4 mb-6 -mx-4 px-4 shadow-sm">
+        <div className="flex justify-between items-center">
+          <h1 className="text-3xl font-bold text-primary">Sweet Delights Bakery</h1>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
+              <Calendar className="h-5 w-5 mr-0" />
+              <span className="hidden sm:inline">Events</span>
+              {selectedEventId && (
+                <Badge className="ml-2" variant="secondary">
+                  1
+                </Badge>
+              )}
+            </Button>
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button variant="outline" className="relative">
+                  <ShoppingBag className="h-5 w-5 mr-0" />
+                  <span className="hidden sm:inline">Cart</span>
+                  {cart.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                      {cart.reduce((sum, item) => sum + item.quantity, 0)}
+                    </span>
+                  )}
+                </Button>
+              </SheetTrigger>
+              <SheetContent className="w-full sm:max-w-md">
+                <SheetHeader>
+                  <SheetTitle>Your Order</SheetTitle>
+                  <SheetDescription>Review your items before checkout</SheetDescription>
+                </SheetHeader>
+                <div className="mt-6 space-y-4">
+                  {cart.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-6">Your cart is empty</p>
+                  ) : (
+                    <>
+                      {cart.map((item, index) => {
+                        const product = products.find(p => p.id === item.productId);
+                        if (!product) return null;
+                        
+                        return (
+                          <div key={index} className="flex flex-col border-b pb-4">
+                            <div className="flex justify-between">
+                              <div>
+                                <h3 className="font-medium">{product.name}</h3>
+                                <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                                {item.notes && <p className="text-sm italic mt-1">Note: {item.notes}</p>}
+                                {product.eventOnly && (
+                                  <Badge variant="outline" className="mt-1">
+                                    Event Pickup Only
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                <p>${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}</p>
+                                <button onClick={() => removeFromCart(index)} className="text-sm text-red-500 mt-1">
+                                  Remove
+                                </button>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <p>${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}</p>
-                              <button onClick={() => removeFromCart(index)} className="text-sm text-red-500 mt-1">
-                                Remove
-                              </button>
-                            </div>
-                          </div>
 
-                          {item.addons.length > 0 && (
-                            <div className="mt-2 pl-4 border-l-2 border-muted">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">Add-ons:</p>
-                              {item.addons.map((cartAddon, addonIndex) => {
-                                const addon = addons.find(a => a.id === cartAddon.addonId);
-                                if (!addon) return null;
-                                
-                                return (
-                                  <div key={addonIndex} className="flex justify-between text-sm">
-                                    <div>
-                                      <p className="text-sm">
-                                        {addon.name} (x{cartAddon.quantity})
-                                      </p>
-                                      {cartAddon.notes && <p className="text-xs italic">Note: {cartAddon.notes}</p>}
+                            {item.addons.length > 0 && (
+                              <div className="mt-2 pl-4 border-l-2 border-muted">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Add-ons:</p>
+                                {item.addons.map((cartAddon, addonIndex) => {
+                                  const addon = addons.find(a => a.id === cartAddon.addonId);
+                                  if (!addon) return null;
+                                  
+                                  return (
+                                    <div key={addonIndex} className="flex justify-between text-sm">
+                                      <div>
+                                        <p className="text-sm">
+                                          {addon.name} (x{cartAddon.quantity})
+                                        </p>
+                                        {cartAddon.notes && <p className="text-xs italic">Note: {cartAddon.notes}</p>}
+                                      </div>
+                                      <p>${(addon.price * cartAddon.quantity).toFixed(2)}</p>
                                     </div>
-                                    <p>${(addon.price * cartAddon.quantity).toFixed(2)}</p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <div className="flex justify-between font-bold pt-2">
-                      <span>Total:</span>
-                      <span>${totalPrice.toFixed(2)}</span>
-                    </div>
-                    <Button
-                      className="w-full mt-6"
-                      onClick={() => router.push("/checkout")}
-                      disabled={cart.length === 0}
-                    >
-                      Proceed to Checkout
-                    </Button>
-                  </>
-                )}
-              </div>
-            </SheetContent>
-          </Sheet>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <div className="flex justify-between font-bold pt-2">
+                        <span>Total:</span>
+                        <span>${totalPrice.toFixed(2)}</span>
+                      </div>
+                      <Button
+                        className="w-full mt-6"
+                        onClick={() => router.push("/checkout")}
+                        disabled={cart.length === 0}
+                      >
+                        Proceed to Checkout
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       </div>
 

@@ -432,10 +432,13 @@ export default function Checkout() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <Button variant="ghost" className="mb-6 pl-0" onClick={goBack}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Shop
-      </Button>
+    <main className="container mx-auto px-4 pb-8">
+      {/* Sticky Navbar */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm py-4 mb-6 -mx-4 px-4 shadow-sm">
+        <Button variant="ghost" className="pl-0" onClick={goBack}>
+          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Shop
+        </Button>
+      </div>
 
       <div className="grid md:grid-cols-2 gap-8">
         {/* Order Summary */}
