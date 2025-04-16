@@ -442,49 +442,96 @@ export default function Checkout() {
           <h2 className="text-2xl font-bold mb-4">Order Summary</h2>
           <Card>
             <CardContent className="p-6">
-              {cart.map((item, index) => (
-                <div key={index} className="py-3 border-b last:border-0">
-                  <div className="flex justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          {products.find(p => p.id === item.productId)?.name} × {item.quantity}
-                        </p>
-                        {products.find(p => p.id === item.productId)?.eventOnly && (
-                          <Badge variant="outline" className="text-xs">
-                            Event Only
-                          </Badge>
-                        )}
-                      </div>
-                      {item.notes && <p className="text-sm text-muted-foreground italic">Note: {item.notes}</p>}
-                    </div>
-                    <p className="font-medium">
-                      ${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}
-                    </p>
-                  </div>
-
-                  {/* Add-ons display */}
-                  {item.addons.length > 0 && (
-                    <div className="mt-2 pl-4 border-l-2 border-muted">
-                      {item.addons.map((addon, addonIndex) => (
-                        <div key={addonIndex} className="flex justify-between text-sm mt-1">
-                          <div>
-                            <p className="text-sm">
-                              {addons.find(a => a.id === addon.addonId)?.name} × {addon.quantity}
-                            </p>
-                            {addon.notes && <p className="text-xs text-muted-foreground italic">Note: {addon.notes}</p>}
-                          </div>
-                          <p className="text-sm">${(addons.find(a => a.id === addon.addonId)?.price || 0 * addon.quantity).toFixed(2)}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div className="space-y-4">
+                <div className="grid grid-cols-8 text-sm font-medium text-muted-foreground border-b pb-2">
+                  <div className="col-span-4">Item</div>
+                  <div className="col-span-1 text-right">Unit</div>
+                  <div className="col-span-1 text-center">Qty</div>
+                  <div className="col-span-2 text-right">Subtotal</div>
                 </div>
-              ))}
 
-              <div className="flex justify-between pt-4 font-bold">
-                <p>Total</p>
-                <p>${totalPrice.toFixed(2)}</p>
+                {cart.map((item, index) => {
+                  const product = products.find(p => p.id === item.productId);
+                  if (!product) return null;
+                  
+                  const productBasePrice = product.price;
+                  const itemTotalWithAddons = calculateItemPrice(item.productId, item.addons) * item.quantity;
+                  
+                  return (
+                    <div key={index} className="space-y-3 pb-3 border-b last:border-0">
+                      {/* Product row */}
+                      <div className="grid grid-cols-8 items-start">
+                        <div className="col-span-4">
+                          <div className="flex items-start gap-2">
+                            <div>
+                              <p className="font-medium">{product.name}</p>
+                              {product.eventOnly && (
+                                <Badge variant="outline" className="text-xs mt-1">
+                                  Event Only
+                                </Badge>
+                              )}
+                              {item.notes && <p className="text-xs text-muted-foreground italic mt-1">Note: {item.notes}</p>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-span-1 text-right">
+                          ${productBasePrice.toFixed(2)}
+                        </div>
+                        <div className="col-span-1 text-center">
+                          {item.quantity}
+                        </div>
+                        <div className="col-span-2 text-right font-medium">
+                          ${(productBasePrice * item.quantity).toFixed(2)}
+                        </div>
+                      </div>
+
+                      {/* Add-ons rows */}
+                      {item.addons.length > 0 && (
+                        <div className="space-y-2 pl-4 border-l-2 border-muted">
+                          {item.addons.map((cartAddon, addonIndex) => {
+                            const addon = addons.find(a => a.id === cartAddon.addonId);
+                            if (!addon) return null;
+                            
+                            return (
+                              <div key={addonIndex} className="grid grid-cols-8 items-start text-sm">
+                                <div className="col-span-4">
+                                  <p>+ {addon.name}</p>
+                                  {cartAddon.notes && <p className="text-xs text-muted-foreground italic">Note: {cartAddon.notes}</p>}
+                                </div>
+                                <div className="col-span-1 text-right">
+                                  ${addon.price.toFixed(2)}
+                                </div>
+                                <div className="col-span-1 text-center">
+                                  {cartAddon.quantity}
+                                </div>
+                                <div className="col-span-2 text-right">
+                                  ${(addon.price * cartAddon.quantity).toFixed(2)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          
+                          {/* Item total with add-ons */}
+                          <div className="grid grid-cols-8 items-start text-sm pt-1 border-t">
+                            <div className="col-span-4 font-medium">Item Total</div>
+                            <div className="col-span-2"></div>
+                            <div className="col-span-2 text-right font-medium">
+                              ${itemTotalWithAddons.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Order totals section */}
+                <div className="pt-3 border-t mt-3">
+                  <div className="flex justify-between text-lg font-bold">
+                    <p>Order Total</p>
+                    <p>${totalPrice.toFixed(2)}</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
