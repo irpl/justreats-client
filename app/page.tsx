@@ -707,10 +707,10 @@ export default function Home() {
   return (
     <main className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold text-primary">Sweet Delights Bakery</h1>
+        <h1 className="text-3xl font-bold text-primary">Jus Treats</h1>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
-            <Calendar className="h-5 w-5 mr-2" />
+            <Calendar className="h-5 w-5 mr-0" />
             <span className="hidden sm:inline">Events</span>
             {selectedEventId && (
               <Badge className="ml-2" variant="secondary">
@@ -721,8 +721,8 @@ export default function Home() {
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="outline" className="relative">
-                <ShoppingBag className="h-5 w-5 mr-2" />
-                <span>Cart</span>
+                <ShoppingBag className="h-5 w-5 mr-0" />
+                <span className="hidden sm:inline">Cart</span>
                 {cart.length > 0 && (
                   <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
                     {cart.reduce((sum, item) => sum + item.quantity, 0)}
