@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle } from "lucide-react"
+import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle, UserPlus, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,11 @@ export default function Checkout() {
   const [orderSubmitted, setOrderSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  
+  // State for saving customer info
+  const [saveInfo, setSaveInfo] = useState(false)
+  const [hasStoredInfo, setHasStoredInfo] = useState(false)
+  const [useStoredInfo, setUseStoredInfo] = useState(true)
 
   // Customer information state
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -50,7 +55,7 @@ export default function Checkout() {
     eventId: false,
   })
 
-  // Load cart data and events from localStorage on component mount
+  // Load cart data, events, and saved customer info from localStorage on component mount
   useEffect(() => {
     const savedCart = localStorage.getItem("pastryCart")
     if (savedCart) {
@@ -70,6 +75,19 @@ export default function Checkout() {
     const savedEvents = localStorage.getItem("pastryEvents")
     if (savedEvents) {
       setEvents(JSON.parse(savedEvents))
+    }
+    
+    // Load saved customer info if available
+    const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
+    if (savedCustomerInfo) {
+      try {
+        const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
+        setCustomerInfo(parsedInfo)
+        setHasStoredInfo(true)
+        setUseStoredInfo(true)
+      } catch (error) {
+        console.error("Error parsing saved customer info:", error)
+      }
     }
 
     setIsLoading(false)
@@ -110,6 +128,46 @@ export default function Checkout() {
       }))
     }
   }, [hasEventOnlyItems, eventOnlyEventIds, customerInfo.eventId])
+
+  // Toggle using stored info
+  const handleToggleStoredInfo = (useStored: boolean) => {
+    setUseStoredInfo(useStored)
+    
+    if (!useStored) {
+      // Reset form to empty values when user chooses not to use stored info
+      setCustomerInfo({
+        name: "",
+        email: "",
+        phone: "",
+        contactMethod: "phone",
+        delivery: false,
+        deliveryAddress: "",
+        pickupAtEvent: customerInfo.pickupAtEvent, // Keep event pickup setting as it depends on cart contents
+        eventId: customerInfo.eventId, // Keep event ID as it depends on cart contents
+      })
+    } else {
+      // Restore saved info from localStorage
+      const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
+      if (savedCustomerInfo) {
+        try {
+          const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
+          // Keep event-related settings from current state since they're contextual to this order
+          setCustomerInfo({
+            ...parsedInfo,
+            pickupAtEvent: customerInfo.pickupAtEvent,
+            eventId: customerInfo.eventId,
+          })
+        } catch (error) {
+          console.error("Error parsing saved customer info:", error)
+        }
+      }
+    }
+  }
+
+  // Handle checkbox change for saving customer info
+  const handleSaveInfoChange = (checked: boolean) => {
+    setSaveInfo(checked)
+  }
 
   // Calculate item price including add-ons
   const calculateItemPrice = (productId: number, cartAddons: CartAddOn[]) => {
@@ -240,6 +298,11 @@ export default function Checkout() {
           body: JSON.stringify(orderData)
         })
         
+        // Save customer info if checkbox is checked
+        if (saveInfo) {
+          localStorage.setItem("pastryCustomerInfo", JSON.stringify(customerInfo))
+        }
+        
         // Clear cart from localStorage
         localStorage.removeItem("pastryCart")
         
@@ -253,7 +316,7 @@ export default function Checkout() {
       }
     }
   }
-
+  
   // Go back to main page
   const goBack = () => {
     router.push("/")
@@ -393,6 +456,47 @@ export default function Checkout() {
               </div>
             )}
             <CardContent className="p-6">
+              {/* Show saved information toggle if there's stored info */}
+              {hasStoredInfo && (
+                <div className="mb-6 space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-md bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <User className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">{localStorage.getItem("pastryCustomerInfo") ? JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").name : ""}</p>
+                        <p className="text-sm text-muted-foreground">{localStorage.getItem("pastryCustomerInfo") ? JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").email : ""}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant={useStoredInfo ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => handleToggleStoredInfo(true)}
+                    >
+                      Use This Info
+                    </Button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-4 border rounded-md bg-muted/20">
+                    <div className="flex items-center gap-3">
+                      <UserPlus className="h-5 w-5 text-primary" />
+                      <div>
+                        <p className="font-medium">Use Different Information</p>
+                        <p className="text-sm text-muted-foreground">Fill in the form with new details</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant={!useStoredInfo ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => handleToggleStoredInfo(false)}
+                    >
+                      Use New Info
+                    </Button>
+                  </div>
+                  
+                  <Separator />
+                </div>
+              )}
+            
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Name *</Label>
@@ -429,6 +533,17 @@ export default function Checkout() {
                     className={errors.phone ? "border-red-500" : ""}
                   />
                   {errors.phone && <p className="text-red-500 text-sm mt-1">Phone number is required</p>}
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox 
+                    id="saveInfo" 
+                    checked={saveInfo} 
+                    onCheckedChange={handleSaveInfoChange}
+                  />
+                  <Label htmlFor="saveInfo" className="text-sm text-muted-foreground">
+                    Save my information for faster checkout next time
+                  </Label>
                 </div>
 
                 <Separator className="my-4" />
