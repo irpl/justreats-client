@@ -22,7 +22,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -40,7 +40,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer"
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll"
-import { fetchApi, getApiUrl } from "@/utils/api"
+import { fetchApi, getApiUrl, getProducts } from "@/utils/api";
 import { LoadingSpinner } from "@/components/loading-spinner"
 import type { Product, CartItem, Banner, ContactInfo, AddOn, SelectedAddOn, Event, CartAddOn } from "@/types/shop-types"
 
@@ -243,7 +243,12 @@ export default function Home() {
     pageSize: 6,
     fetchFunction: async (page, size) => {
       try {
-        return await fetchApi<Product[]>(`products?page=${page}&size=${size}`);
+        const products = await getProducts({
+          page,
+          size,
+          available: true,
+        })
+        return products;
       } catch (error) {
         console.error("Error fetching products:", error)
         // Fallback to localStorage if API fails

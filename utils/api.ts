@@ -43,14 +43,25 @@ export const getApiUrl = (endpoint: string): string => {
   return `${baseUrl}/api/${cleanEndpoint}`;
 };
 
+
+interface QueryParams {
+  [key: string]: string | number | boolean;
+}
+
 /**
  * Basic fetch wrapper with error handling
  */
 export const fetchApi = async <T>(
   endpoint: string, 
-  options: RequestInit = {}
+  options: RequestInit = {},
+  query: QueryParams = {}
 ): Promise<T> => {
-  const url = getApiUrl(endpoint);
+  let url = getApiUrl(endpoint);
+
+  const queryString = new URLSearchParams(query).toString();
+  if (queryString) {
+      url += `?${queryString}`;
+  }
   
   try {
     const response = await fetch(url, {
@@ -71,3 +82,19 @@ export const fetchApi = async <T>(
     throw error;
   }
 }; 
+
+/**
+ * Get all products
+ * @param query - query params to be passed to the api
+ * @returns array of products
+ */
+export const getProducts = async <T>(admin: boolean = false, query: QueryParams = {}): Promise<T> => {
+    let finalQuery = { ...query };
+
+    // If not an admin, add the 'available' parameter to the query
+    if (!admin) {
+        finalQuery.available = true;
+    }
+
+    return await fetchApi<T>('products', {}, finalQuery);
+};
