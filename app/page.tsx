@@ -243,11 +243,7 @@ export default function Home() {
     pageSize: 6,
     fetchFunction: async (page, size) => {
       try {
-        const products = await getProducts({
-          page,
-          size,
-          available: true,
-        })
+        const products = await getProducts(false, { page, size })
         return products;
       } catch (error) {
         console.error("Error fetching products:", error)
