@@ -339,6 +339,35 @@ export default function Checkout() {
     return !Object.values(newErrors).some(Boolean)
   }
 
+  // Function to update an order
+  const updateOrder = async (uniqueOrderId: string) => {
+    setIsSubmitting(true)
+    setSubmitError(null)
+    
+    try {
+      // Prepare order data for API
+      const orderData = {
+        items: cart,
+        customer: customerInfo,
+        eventId: customerInfo.eventId
+      }
+      
+      // Send order to API
+      await fetchApi(`orders/unique/${uniqueOrderId}`, {
+        method: 'PUT',
+        body: JSON.stringify(orderData)
+      })
+      
+      // Show success message
+      setOrderSubmitted(true)
+      
+    } catch (error) {
+      console.error('Error updating order:', error)
+      setSubmitError('Failed to update order. Please try again or contact us directly.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -371,6 +400,34 @@ export default function Checkout() {
         
         // Show success message
         setOrderSubmitted(true)
+
+        // Check if the response contains the necessary order information
+        if (response && response.unique_order_id && response.date) {
+          // Get the existing orders from local storage or initialize an empty array
+          const existingOrders = JSON.parse(localStorage.getItem('pastryOrders') || '[]');
+
+          // Add the new order to the list of orders
+          existingOrders.push({
+            unique_order_id: response.unique_order_id,
+            date: response.date, // Store the order creation date/time from the response
+          });
+
+          // Save the updated list back to local storage
+          localStorage.setItem('pastryOrders', JSON.stringify(existingOrders));
+
+          // Clean up old orders (older than one hour)
+          const now = new Date();
+          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000); // One hour ago
+
+          const validOrders = existingOrders.filter((order: any) => {
+            const orderTime = new Date(order.date);
+            return orderTime > oneHourAgo; // Keep orders that are within the last hour
+          });
+
+          // Save the filtered list back to local storage
+          localStorage.setItem('pastryOrders', JSON.stringify(validOrders));
+        }
+        
       } catch (error) {
         console.error('Error submitting order:', error)
         setSubmitError('Failed to submit order. Please try again or contact us directly.')
