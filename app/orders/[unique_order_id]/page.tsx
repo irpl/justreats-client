@@ -67,8 +67,8 @@ export default function EditOrder() {
           const orderData = await fetchApi<{ items: CartItem[]; customer: CustomerInfo; eventId: number }>(
             `orders/unique/${uniqueOrderId}`
           );
-
           setCart(orderData.items);
+          console.log("orderData", orderData)
           setCustomerInfo(orderData.customer);
         } catch (error) {
           console.error("Error fetching order data:", error);
