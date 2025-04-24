@@ -60,15 +60,15 @@ export default function EditOrder() {
   });
 
   // Load cart data, events, and saved customer info from localStorage on component mount
-  useEffect(() => {
+    useEffect(() => {
     const loadOrderData = async () => {
       if (uniqueOrderId) {
         try {
           const orderData = await fetchApi<{ items: CartItem[]; customer: CustomerInfo; eventId: number }>(
-            `orders/unique/${uniqueOrderId}`
+            `orders/${uniqueOrderId}`
           );
           setCart(orderData.items);
-          console.log("orderData", orderData)
+          console.log("Order Data from server:", orderData);
           setCustomerInfo(orderData.customer);
         } catch (error) {
           console.error("Error fetching order data:", error);
@@ -168,7 +168,7 @@ export default function EditOrder() {
     };
 
     loadOrderData();
-  }, [uniqueOrderId]);
+  }, []);
 
   // Check if cart has event-only items
   const hasEventOnlyItems = cart.some((item) => {
