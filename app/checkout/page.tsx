@@ -860,11 +860,6 @@ export default function Checkout() {
 
 // app/orders/page.tsx
 
-export const metadata = {
-  title: 'Orders',
-}
-
-
 const OrderCard = ({ order, onShowDetails }: { order: any, onShowDetails: (orderId: string) => void }) => {
   return (
     <div className="border rounded-md p-4 mb-4">
