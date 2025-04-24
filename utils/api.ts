@@ -88,13 +88,41 @@ export const fetchApi = async <T>(
  * @param query - query params to be passed to the api
  * @returns array of products
  */
-export const getProducts = async <T>(admin: boolean = false, query: QueryParams = {}): Promise<T> => {
+export const getProducts = async <T>(admin: boolean = false, query: Omit<QueryParams, 'pageSize'> = {}): Promise<T> => {
     let finalQuery = { ...query };
 
     // If not an admin, add the 'available' parameter to the query
     if (!admin) {
         finalQuery.available = true;
+    } else {
+        finalQuery.pageSize = 1000;
     }
 
     return await fetchApi<T>('products', {}, finalQuery);
+};
+
+/**
+ * Get all addons
+ * @param query - query params to be passed to the api
+ * @returns array of addons
+ */
+export const getAddons = async <T>(admin: boolean = false, query: Omit<QueryParams, 'pageSize'> = {}): Promise<T> => {
+  let finalQuery = { ...query };
+
+  if (admin) {
+    finalQuery.pageSize = 1000;
+  }
+
+  return await fetchApi<T>('addons', {}, finalQuery);
+};
+
+/**
+ * Get all events
+ * @param query - query params to be passed to the api
+ * @returns array of events
+ */
+export const getEvents = async <T>(admin: boolean = false, query: Omit<QueryParams, 'pageSize'> = {}): Promise<T> => {
+  const finalQuery = { ...query, pageSize: admin ? 1000 : undefined };
+
+  return await fetchApi<T>('events', {}, finalQuery);
 };
