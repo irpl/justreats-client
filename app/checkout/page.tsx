@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React, { type ReactNode } from "react"
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -28,6 +28,7 @@ export default function Checkout() {
   const [orderSubmitted, setOrderSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [hasOrders, setHasOrders] = useState(false)
   
   // State for saving customer info
   const [saveInfo, setSaveInfo] = useState(false)
@@ -94,6 +95,13 @@ export default function Checkout() {
     }
     
     // Load saved customer info if available
+    // Check for existing orders
+    const savedOrders = localStorage.getItem('pastryOrders');
+    if (savedOrders) {
+      const parsedOrders = JSON.parse(savedOrders);
+      setHasOrders(Array.isArray(parsedOrders) && parsedOrders.length > 0);
+    }
+
     const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
     if (savedCustomerInfo) {
       try {
@@ -493,6 +501,11 @@ export default function Checkout() {
       <Button variant="ghost" className="mb-6 pl-0" onClick={goBack}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Back to Shop
       </Button>
+      {hasOrders && (
+        <Button variant="secondary" className="mb-6 ml-4" onClick={() => router.push('/orders')}>
+            View Past Orders
+          </Button>
+      )}
 
       <div className="grid md:grid-cols-2 gap-8">
         {/* Order Summary */}
@@ -839,6 +852,63 @@ export default function Checkout() {
           </Card>
         </div>
       </div>
+    </main>
+  )
+}
+
+
+
+// app/orders/page.tsx
+
+export const metadata = {
+  title: 'Orders',
+}
+
+
+const OrderCard = ({ order, onShowDetails }: { order: any, onShowDetails: (orderId: string) => void }) => {
+  return (
+    <div className="border rounded-md p-4 mb-4">
+      <p className="font-medium">Order ID: {order.unique_order_id}</p>
+      <p className="text-sm text-muted-foreground">Date: {order.date}</p>
+      <Button size="sm" onClick={() => onShowDetails(order.unique_order_id)} className="mt-2">
+        Show Details
+      </Button>
+    </div>
+  )
+}
+
+const OrderDetails = ({ order }: { order: any }) => {
+  return (
+    <div className="border rounded-md p-4 mt-4">
+      <h3 className="font-medium">Order Details</h3>
+      <p>Order ID: {order.unique_order_id}</p>
+      <p>Date: {order.date}</p>
+    </div>
+  )
+}
+
+
+export default function OrdersPage() {
+  const [orders, setOrders] = useState<any[]>([])
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null)
+
+  useEffect(() => {
+    const storedOrders = localStorage.getItem('pastryOrders')
+    if (storedOrders) {
+      setOrders(JSON.parse(storedOrders))
+    }
+  }, [])
+
+  const handleShowDetails = async (orderId: string) => {
+    const order = await fetchApi(`orders/unique/${orderId}`, { method: 'GET' })
+    setSelectedOrder(order)
+  }
+
+  return (
+    <main className="container mx-auto p-4">
+      <h1 className="text-3xl font-bold mb-6">Your Orders</h1>
+      {orders.map((order) => <OrderCard key={order.unique_order_id} order={order} onShowDetails={handleShowDetails} />)}
+      {selectedOrder && <OrderDetails order={selectedOrder} />}
     </main>
   )
 }
