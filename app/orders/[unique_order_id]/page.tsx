@@ -1,39 +1,42 @@
-"use client"
+"use client";
 
-import React, { type ReactNode } from "react"
+import React, { type ReactNode } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle, UserPlus, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import type { Product, CartItem, CustomerInfo, ContactMethod, CartAddOn, Event } from "@/types/shop-types";
+import { formatDate } from "@/lib/utils";
+import { fetchApi, getApiUrl } from "@/utils/api";
+import { useSearchParams } from "next/navigation";
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle, UserPlus, User } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import type { Product, CartItem, CustomerInfo, ContactMethod, CartAddOn, Event } from "@/types/shop-types"
-import { formatDate } from "@/lib/utils"
-import { fetchApi, getApiUrl } from "@/utils/api"
+export default function EditOrder() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const uniqueOrderId = searchParams.get("unique_order_id") as string;
 
-export default function Checkout() {
-  const router = useRouter()
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [addons, setAddons] = useState<any[]>([])
-  const [events, setEvents] = useState<Event[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [orderSubmitted, setOrderSubmitted] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [hasOrders, setHasOrders] = useState(false)
-  
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [addons, setAddons] = useState<any[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [orderUpdated, setOrderUpdated] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [hasOrders, setHasOrders] = useState(false);
+
   // State for saving customer info
-  const [saveInfo, setSaveInfo] = useState(false)
-  const [hasStoredInfo, setHasStoredInfo] = useState(false)
-  const [useStoredInfo, setUseStoredInfo] = useState(true)
+  const [saveInfo, setSaveInfo] = useState(false);
+  const [hasStoredInfo, setHasStoredInfo] = useState(false);
+  const [useStoredInfo, setUseStoredInfo] = useState(true);
 
   // Customer information state
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -45,7 +48,7 @@ export default function Checkout() {
     deliveryAddress: "",
     pickupAtEvent: false,
     eventId: undefined,
-  })
+  });
 
   // Form validation state
   const [errors, setErrors] = useState({
@@ -54,139 +57,143 @@ export default function Checkout() {
     phone: false,
     deliveryAddress: false,
     eventId: false,
-  })
+  });
 
   // Load cart data, events, and saved customer info from localStorage on component mount
   useEffect(() => {
-    const savedCart = localStorage.getItem("pastryCart")
-    if (savedCart) {
-      try {
-        setCart(JSON.parse(savedCart))
-      } catch (error) {
-        console.error("Error parsing cart:", error)
-      }
-    }
+    const loadOrderData = async () => {
+      if (uniqueOrderId) {
+        try {
+          const orderData = await fetchApi<{ items: CartItem[]; customer: CustomerInfo; eventId: number }>(
+            `orders/unique/${uniqueOrderId}`
+          );
 
-    const savedProducts = localStorage.getItem("pastryProducts")
-    if (savedProducts) {
-      try {
-        setProducts(JSON.parse(savedProducts))
-      } catch (error) {
-        console.error("Error parsing products:", error)
-      }
-    }
-    
-    const savedAddons = localStorage.getItem("pastryAddons")
-    if (savedAddons) {
-      try {
-        setAddons(JSON.parse(savedAddons))
-      } catch (error) {
-        console.error("Error parsing addons:", error)
-      }
-    }
-
-    const savedEvents = localStorage.getItem("pastryEvents")
-    if (savedEvents) {
-      try {
-        setEvents(JSON.parse(savedEvents))
-      } catch (error) {
-        console.error("Error parsing events:", error)
-      }
-    }
-    
-    // Load saved customer info if available
-    // Check for existing orders
-    const savedOrders = localStorage.getItem('pastryOrders');
-    if (savedOrders) {
-      const parsedOrders = JSON.parse(savedOrders);
-      setHasOrders(Array.isArray(parsedOrders) && parsedOrders.length > 0);
-    }
-
-    const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
-    if (savedCustomerInfo) {
-      try {
-        const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
-        setCustomerInfo(parsedInfo)
-        setHasStoredInfo(true)
-        setUseStoredInfo(true)
-      } catch (error) {
-        console.error("Error parsing saved customer info:", error)
-      }
-    }
-
-    // Verify that all needed products and addons for the cart are available
-    if (savedCart && savedProducts && savedAddons) {
-      try {
-        const cartItems = JSON.parse(savedCart) as CartItem[]
-        const productList = JSON.parse(savedProducts) as Product[]
-        const addonsList = JSON.parse(savedAddons) as any[]
-        
-        // Check if any product in cart is missing from products list
-        const missingProducts = cartItems.filter(item => 
-          !productList.some(p => p.id === item.productId)
-        )
-        
-        if (missingProducts.length > 0) {
-          console.error("Some products in cart are missing from product list:", missingProducts)
-          // Remove problematic items from cart
-          const filteredCart = cartItems.filter(item => 
-            productList.some(p => p.id === item.productId)
-          )
-          setCart(filteredCart)
-          localStorage.setItem("pastryCart", JSON.stringify(filteredCart))
+          setCart(orderData.items);
+          setCustomerInfo(orderData.customer);
+        } catch (error) {
+          console.error("Error fetching order data:", error);
+          setSubmitError("Failed to load order data. Please try again or contact us directly.");
+          return;
         }
-        
-        // Check for missing addons
-        let hasInvalidAddons = false
-        
-        cartItems.forEach(item => {
-          const validAddons = item.addons.filter(addon => 
-            addonsList.some(a => a.id === addon.addonId)
-          )
-          
-          if (validAddons.length !== item.addons.length) {
-            hasInvalidAddons = true
-            // Update item with only valid addons
-            item.addons = validAddons
+      } else {
+        setSubmitError("No order ID provided.");
+        return;
+      }
+
+      const savedProducts = localStorage.getItem("pastryProducts");
+      if (savedProducts) {
+        try {
+          setProducts(JSON.parse(savedProducts));
+        } catch (error) {
+          console.error("Error parsing products:", error);
+        }
+      }
+
+      const savedAddons = localStorage.getItem("pastryAddons");
+      if (savedAddons) {
+        try {
+          setAddons(JSON.parse(savedAddons));
+        } catch (error) {
+          console.error("Error parsing addons:", error);
+        }
+      }
+
+      const savedEvents = localStorage.getItem("pastryEvents");
+      if (savedEvents) {
+        try {
+          setEvents(JSON.parse(savedEvents));
+        } catch (error) {
+          console.error("Error parsing events:", error);
+        }
+      }
+
+      // Check for existing orders
+      const savedOrders = localStorage.getItem('pastryOrders');
+      if (savedOrders) {
+        const parsedOrders = JSON.parse(savedOrders);
+        setHasOrders(Array.isArray(parsedOrders) && parsedOrders.length > 0);
+      }
+
+      // Load saved customer info if available
+      const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo");
+      if (savedCustomerInfo) {
+        try {
+          const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo;
+          setCustomerInfo(parsedInfo);
+          setHasStoredInfo(true);
+          setUseStoredInfo(true);
+        } catch (error) {
+          console.error("Error parsing saved customer info:", error);
+        }
+      }
+
+      // Verify that all needed products and addons for the cart are available
+      if (savedProducts && savedAddons) {
+        try {
+          const productList = JSON.parse(savedProducts) as Product[];
+          const addonsList = JSON.parse(savedAddons) as any[];
+
+          // Check if any product in cart is missing from products list
+          const missingProducts = cart.filter((item) => !productList.some((p) => p.id === item.productId));
+
+          if (missingProducts.length > 0) {
+            console.error("Some products in cart are missing from product list:", missingProducts);
+            // Remove problematic items from cart
+            const filteredCart = cart.filter((item) => productList.some((p) => p.id === item.productId));
+            setCart(filteredCart);
           }
-        })
-        
-        if (hasInvalidAddons) {
-          setCart([...cartItems])
-          localStorage.setItem("pastryCart", JSON.stringify(cartItems))
-        }
-      } catch (error) {
-        console.error("Error validating cart data:", error)
-      }
-    }
 
-    setIsLoading(false)
-  }, [])
+          // Check for missing addons
+          let hasInvalidAddons = false;
+
+          cart.forEach((item) => {
+            const validAddons = item.addons.filter((addon) => addonsList.some((a) => a.id === addon.addonId));
+
+            if (validAddons.length !== item.addons.length) {
+              hasInvalidAddons = true;
+              // Update item with only valid addons
+              item.addons = validAddons;
+            }
+          });
+
+          if (hasInvalidAddons) {
+            setCart([...cart]);
+          }
+        } catch (error) {
+          console.error("Error validating cart data:", error);
+        }
+      }
+
+      setIsLoading(false);
+    };
+
+    loadOrderData();
+  }, [uniqueOrderId]);
 
   // Check if cart has event-only items
   const hasEventOnlyItems = cart.some((item) => {
-    const product = products.find(p => p.id === item.productId)
-    return product?.eventOnly
-  })
+    const product = products.find((p) => p.id === item.productId);
+    return product?.eventOnly;
+  });
 
   // Get unique event IDs from event-only items
   const eventOnlyEventIds = Array.from(
     new Set(
       cart
         .filter((item) => {
-          const product = products.find(p => p.id === item.productId)
-          return product?.eventOnly
+          const product = products.find((p) => p.id === item.productId);
+          return product?.eventOnly;
         })
         .map((item) => {
-          const product = products.find(p => p.id === item.productId)
-          return product?.eventId
+          const product = products.find((p) => p.id === item.productId);
+          return product?.eventId;
         })
-        .filter(Boolean) as number[],
-    ),
-  )
+        .filter(Boolean) as number[]
+    )
+  );
 
   // Get events for event-only items
-  const eventOnlyEvents = events.filter((event) => eventOnlyEventIds.includes(event.id))
+  const eventOnlyEvents = events.filter((event) => eventOnlyEventIds.includes(event.id));
 
   // Set default event ID if there's only one event-only event
   useEffect(() => {
@@ -195,14 +202,14 @@ export default function Checkout() {
         ...prev,
         pickupAtEvent: true,
         eventId: eventOnlyEventIds[0],
-      }))
+      }));
     }
-  }, [hasEventOnlyItems, eventOnlyEventIds, customerInfo.eventId])
+  }, [hasEventOnlyItems, eventOnlyEventIds, customerInfo.eventId]);
 
   // Toggle using stored info
   const handleToggleStoredInfo = (useStored: boolean) => {
-    setUseStoredInfo(useStored)
-    
+    setUseStoredInfo(useStored);
+
     if (!useStored) {
       // Reset form to empty values when user chooses not to use stored info
       setCustomerInfo({
@@ -214,61 +221,61 @@ export default function Checkout() {
         deliveryAddress: "",
         pickupAtEvent: customerInfo.pickupAtEvent, // Keep event pickup setting as it depends on cart contents
         eventId: customerInfo.eventId, // Keep event ID as it depends on cart contents
-      })
+      });
     } else {
       // Restore saved info from localStorage
-      const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo")
+      const savedCustomerInfo = localStorage.getItem("pastryCustomerInfo");
       if (savedCustomerInfo) {
         try {
-          const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo
+          const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo;
           // Keep event-related settings from current state since they're contextual to this order
           setCustomerInfo({
             ...parsedInfo,
             pickupAtEvent: customerInfo.pickupAtEvent,
             eventId: customerInfo.eventId,
-          })
+          });
         } catch (error) {
-          console.error("Error parsing saved customer info:", error)
+          console.error("Error parsing saved customer info:", error);
         }
       }
     }
-  }
+  };
 
   // Handle checkbox change for saving customer info
   const handleSaveInfoChange = (checked: boolean) => {
-    setSaveInfo(checked)
-  }
+    setSaveInfo(checked);
+  };
 
   // Calculate item price including add-ons
   const calculateItemPrice = (productId: number, cartAddons: CartAddOn[]) => {
-    const product = products.find(p => p.id === productId)
-    if (!product) return 0
-    
-    const basePrice = product.price
-    const addonsPrice = cartAddons.reduce((sum, cartAddon) => {
-      const addon = addons.find(a => a.id === cartAddon.addonId)
-      return sum + (addon?.price || 0) * cartAddon.quantity
-    }, 0)
+    const product = products.find((p) => p.id === productId);
+    if (!product) return 0;
 
-    return basePrice + addonsPrice
-  }
+    const basePrice = product.price;
+    const addonsPrice = cartAddons.reduce((sum, cartAddon) => {
+      const addon = addons.find((a) => a.id === cartAddon.addonId);
+      return sum + (addon?.price || 0) * cartAddon.quantity;
+    }, 0);
+
+    return basePrice + addonsPrice;
+  };
 
   // Calculate total price
   const totalPrice = cart.reduce((sum, item) => {
-    const itemPrice = calculateItemPrice(item.productId, item.addons)
-    return sum + itemPrice * item.quantity
-  }, 0)
+    const itemPrice = calculateItemPrice(item.productId, item.addons);
+    return sum + itemPrice * item.quantity;
+  }, 0);
 
   // Handle input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setCustomerInfo((prev) => ({ ...prev, [name]: value }))
+    const { name, value } = e.target;
+    setCustomerInfo((prev) => ({ ...prev, [name]: value }));
 
     // Clear error when user types
     if (name in errors) {
-      setErrors((prev) => ({ ...prev, [name]: false }))
+      setErrors((prev) => ({ ...prev, [name]: false }));
     }
-  }
+  };
 
   // Handle checkbox change
   const handleDeliveryChange = (checked: boolean) => {
@@ -279,16 +286,16 @@ export default function Checkout() {
         delivery: checked,
         pickupAtEvent: false,
         eventId: undefined,
-      }))
+      }));
     } else {
-      setCustomerInfo((prev) => ({ ...prev, delivery: checked }))
+      setCustomerInfo((prev) => ({ ...prev, delivery: checked }));
     }
 
     if (!checked) {
-      setCustomerInfo((prev) => ({ ...prev, deliveryAddress: "" }))
-      setErrors((prev) => ({ ...prev, deliveryAddress: false }))
+      setCustomerInfo((prev) => ({ ...prev, deliveryAddress: "" }));
+      setErrors((prev) => ({ ...prev, deliveryAddress: false }));
     }
-  }
+  };
 
   // Handle event pickup change
   const handleEventPickupChange = (checked: boolean) => {
@@ -300,38 +307,37 @@ export default function Checkout() {
         delivery: false,
         deliveryAddress: "",
         eventId: eventOnlyEventIds.length === 1 ? eventOnlyEventIds[0] : prev.eventId,
-      }))
+      }));
     } else {
       setCustomerInfo((prev) => ({
         ...prev,
         pickupAtEvent: checked,
         eventId: checked ? (eventOnlyEventIds.length === 1 ? eventOnlyEventIds[0] : prev.eventId) : undefined,
-      }))
+      }));
     }
 
     if (!checked) {
-      setCustomerInfo((prev) => ({ ...prev, eventId: undefined }))
-      setErrors((prev) => ({ ...prev, eventId: false }))
+      setCustomerInfo((prev) => ({ ...prev, eventId: undefined }));
+      setErrors((prev) => ({ ...prev, eventId: false }));
     }
-  }
+  };
 
   // Handle event selection
   const handleEventChange = (value: string) => {
     setCustomerInfo((prev) => ({
       ...prev,
       eventId: Number.parseInt(value),
-    }))
-    setErrors((prev) => ({ ...prev, eventId: false }))
-  }
+    }));
+    setErrors((prev) => ({ ...prev, eventId: false }));
+  };
 
   // Handle contact method change
   const handleContactMethodChange = (value: string) => {
     setCustomerInfo((prev) => ({
       ...prev,
       contactMethod: value as ContactMethod,
-    }))
-  }
-
+    }));
+  };
 
   // Validate form
   const validateForm = () => {
@@ -341,136 +347,81 @@ export default function Checkout() {
       phone: !customerInfo.phone.trim(),
       deliveryAddress: customerInfo.delivery && !customerInfo.deliveryAddress.trim(),
       eventId: customerInfo.pickupAtEvent && !customerInfo.eventId ? true : false,
-    }
+    };
 
-    setErrors(newErrors)
-    return !Object.values(newErrors).some(Boolean)
-  }
+    setErrors(newErrors);
+    return !Object.values(newErrors).some(Boolean);
+  };
 
   // Function to update an order
-  const updateOrder = async (uniqueOrderId: string) => {
-    setIsSubmitting(true)
-    setSubmitError(null)
-    
+  const updateOrder = async () => {
+    setIsSubmitting(true);
+    setSubmitError(null);
+
     try {
       // Prepare order data for API
       const orderData = {
         items: cart,
         customer: customerInfo,
-        eventId: customerInfo.eventId
-      }
-      
+        eventId: customerInfo.eventId,
+      };
+
       // Send order to API
       await fetchApi(`orders/unique/${uniqueOrderId}`, {
-        method: 'PUT',
-        body: JSON.stringify(orderData)
-      })
-      
+        method: "PUT",
+        body: JSON.stringify(orderData),
+      });
+
+      // Save customer info if checkbox is checked
+      if (saveInfo) {
+        localStorage.setItem("pastryCustomerInfo", JSON.stringify(customerInfo));
+      }
+
       // Show success message
-      setOrderSubmitted(true)
-      
+      setOrderUpdated(true);
     } catch (error) {
-      console.error('Error updating order:', error)
-      setSubmitError('Failed to update order. Please try again or contact us directly.')
+      console.error("Error updating order:", error);
+      setSubmitError("Failed to update order. Please try again or contact us directly.");
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (validateForm()) {
-      setIsSubmitting(true)
-      setSubmitError(null)
-      
-      try {
-        // Prepare order data for API
-        const orderData = {
-          items: cart,
-          customer: customerInfo,
-          eventId: customerInfo.eventId
-        }
-        
-        // Send order to API
-        const response = await fetchApi('orders', {
-          method: 'POST',
-          body: JSON.stringify(orderData)
-        })
-        
-        // Save customer info if checkbox is checked
-        if (saveInfo) {
-          localStorage.setItem("pastryCustomerInfo", JSON.stringify(customerInfo))
-        }
-        
-        // Clear cart from localStorage
-        localStorage.removeItem("pastryCart")
-        
-        // Show success message
-        setOrderSubmitted(true)
-
-        // Check if the response contains the necessary order information
-        if (response && response.unique_order_id && response.date) {
-          // Get the existing orders from local storage or initialize an empty array
-          const existingOrders = JSON.parse(localStorage.getItem('pastryOrders') || '[]');
-
-          // Add the new order to the list of orders
-          existingOrders.push({
-            unique_order_id: response.unique_order_id,
-            date: response.date, // Store the order creation date/time from the response
-          });
-
-          // Save the updated list back to local storage
-          localStorage.setItem('pastryOrders', JSON.stringify(existingOrders));
-
-          // Clean up old orders (older than one hour)
-          const now = new Date();
-          const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000); // One hour ago
-
-          const validOrders = existingOrders.filter((order: any) => {
-            const orderTime = new Date(order.date);
-            return orderTime > oneHourAgo; // Keep orders that are within the last hour
-          });
-
-          // Save the filtered list back to local storage
-          localStorage.setItem('pastryOrders', JSON.stringify(validOrders));
-        }
-        
-      } catch (error) {
-        console.error('Error submitting order:', error)
-        setSubmitError('Failed to submit order. Please try again or contact us directly.')
-      } finally {
-        setIsSubmitting(false)
-      }
+      await updateOrder();
     }
-  }
-  
+  };
+
   // Go back to main page
   const goBack = () => {
-    router.push("/")
-  }
+    router.push("/orders");
+  };
 
   // Get selected event
-  const selectedEvent = customerInfo.eventId ? events.find((event) => event.id === customerInfo.eventId) : null
+  const selectedEvent = customerInfo.eventId ? events.find((event) => event.id === customerInfo.eventId) : null;
 
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[50vh]">
         <p>Loading...</p>
       </div>
-    )
+    );
   }
 
-  if (cart.length === 0 && !orderSubmitted) {
+  if (cart.length === 0 && !orderUpdated) {
     return (
       <div className="container mx-auto px-4 py-8 flex flex-col items-center min-h-[50vh]">
         <p className="mb-4">Your cart is empty</p>
-        <Button onClick={goBack}>Return to Shop</Button>
+        <Button onClick={goBack}>Return to Orders</Button>
       </div>
-    )
+    );
   }
 
-  if (orderSubmitted) {
+  if (orderUpdated) {
     return (
       <div className="container mx-auto px-4 py-8 max-w-md">
         <Card>
@@ -478,28 +429,28 @@ export default function Checkout() {
             <div className="mx-auto bg-primary/10 p-3 rounded-full w-12 h-12 flex items-center justify-center mb-4">
               <Check className="h-6 w-6 text-primary" />
             </div>
-            <CardTitle className="text-2xl">Order Received!</CardTitle>
+            <CardTitle className="text-2xl">Order Updated!</CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="mb-6">
-              Thank you for your order. We will contact you shortly via your preferred method (
+              Your order has been successfully updated. We will contact you shortly via your preferred method (
               {customerInfo.contactMethod}) to confirm your order details
               {customerInfo.delivery ? " and provide delivery cost information" : ""}
               {customerInfo.pickupAtEvent && selectedEvent ? ` for pickup at ${selectedEvent.name}` : ""}.
             </p>
             <Button onClick={goBack} className="w-full">
-              Return to Shop
+              Return to Orders
             </Button>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
     <main className="container mx-auto px-4 py-8">
       <Button variant="ghost" className="mb-6 pl-0" onClick={goBack}>
-        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Shop
+        <ArrowLeft className="mr-2 h-4 w-4" /> Back to Orders
       </Button>
 
       <div className="grid md:grid-cols-2 gap-8">
@@ -517,12 +468,12 @@ export default function Checkout() {
                 </div>
 
                 {cart.map((item, index) => {
-                  const product = products.find(p => p.id === item.productId);
+                  const product = products.find((p) => p.id === item.productId);
                   if (!product) return null;
-                  
+
                   const productBasePrice = product.price;
                   const itemTotalWithAddons = calculateItemPrice(item.productId, item.addons) * item.quantity;
-                  
+
                   return (
                     <div key={index} className="space-y-3 pb-3 border-b last:border-0">
                       {/* Product row */}
@@ -540,50 +491,36 @@ export default function Checkout() {
                             </div>
                           </div>
                         </div>
-                        <div className="col-span-1 text-right">
-                          ${productBasePrice.toFixed(2)}
-                        </div>
-                        <div className="col-span-1 text-center">
-                          {item.quantity}
-                        </div>
-                        <div className="col-span-2 text-right font-medium">
-                          ${(productBasePrice * item.quantity).toFixed(2)}
-                        </div>
+                        <div className="col-span-1 text-right">${productBasePrice.toFixed(2)}</div>
+                        <div className="col-span-1 text-center">{item.quantity}</div>
+                        <div className="col-span-2 text-right font-medium">${(productBasePrice * item.quantity).toFixed(2)}</div>
                       </div>
 
                       {/* Add-ons rows */}
                       {item.addons.length > 0 && (
                         <div className="space-y-2 pl-4 border-l-2 border-muted">
                           {item.addons.map((cartAddon, addonIndex) => {
-                            const addon = addons.find(a => a.id === cartAddon.addonId);
+                            const addon = addons.find((a) => a.id === cartAddon.addonId);
                             if (!addon) return null;
-                            
+
                             return (
                               <div key={addonIndex} className="grid grid-cols-8 items-start text-sm">
                                 <div className="col-span-4">
                                   <p>+ {addon.name}</p>
                                   {cartAddon.notes && <p className="text-xs text-muted-foreground italic">Note: {cartAddon.notes}</p>}
                                 </div>
-                                <div className="col-span-1 text-right">
-                                  ${addon.price.toFixed(2)}
-                                </div>
-                                <div className="col-span-1 text-center">
-                                  {cartAddon.quantity}
-                                </div>
-                                <div className="col-span-2 text-right">
-                                  ${(addon.price * cartAddon.quantity).toFixed(2)}
-                                </div>
+                                <div className="col-span-1 text-right">${addon.price.toFixed(2)}</div>
+                                <div className="col-span-1 text-center">{cartAddon.quantity}</div>
+                                <div className="col-span-2 text-right">${(addon.price * cartAddon.quantity).toFixed(2)}</div>
                               </div>
                             );
                           })}
-                          
+
                           {/* Item total with add-ons */}
                           <div className="grid grid-cols-8 items-start text-sm pt-1 border-t">
                             <div className="col-span-4 font-medium">Item Total</div>
                             <div className="col-span-2"></div>
-                            <div className="col-span-2 text-right font-medium">
-                              ${itemTotalWithAddons.toFixed(2)}
-                            </div>
+                            <div className="col-span-2 text-right font-medium">${itemTotalWithAddons.toFixed(2)}</div>
                           </div>
                         </div>
                       )}
@@ -638,19 +575,19 @@ export default function Checkout() {
                     <div className="flex items-center gap-3">
                       <User className="h-5 w-5 text-primary" />
                       <div>
-                        <p className="font-medium">{localStorage.getItem("pastryCustomerInfo") ? JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").name : ""}</p>
-                        <p className="text-sm text-muted-foreground">{localStorage.getItem("pastryCustomerInfo") ? JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").email : ""}</p>
+                        <p className="font-medium">
+                          {localStorage.getItem("pastryCustomerInfo") ? JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").name : ""}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {localStorage.getItem("pastryCustomerInfo") ? JSON.parse(localStorage.getItem("pastryCustomerInfo") || "{}").email : ""}
+                        </p>
                       </div>
                     </div>
-                    <Button 
-                      variant={useStoredInfo ? "default" : "outline"} 
-                      size="sm" 
-                      onClick={() => handleToggleStoredInfo(true)}
-                    >
+                    <Button variant={useStoredInfo ? "default" : "outline"} size="sm" onClick={() => handleToggleStoredInfo(true)}>
                       Use This Info
                     </Button>
                   </div>
-                  
+
                   <div className="flex items-center justify-between p-4 border rounded-md bg-muted/20">
                     <div className="flex items-center gap-3">
                       <UserPlus className="h-5 w-5 text-primary" />
@@ -659,29 +596,19 @@ export default function Checkout() {
                         <p className="text-sm text-muted-foreground">Fill in the form with new details</p>
                       </div>
                     </div>
-                    <Button 
-                      variant={!useStoredInfo ? "default" : "outline"} 
-                      size="sm" 
-                      onClick={() => handleToggleStoredInfo(false)}
-                    >
+                    <Button variant={!useStoredInfo ? "default" : "outline"} size="sm" onClick={() => handleToggleStoredInfo(false)}>
                       Use New Info
                     </Button>
                   </div>
-                  
+
                   <Separator />
                 </div>
               )}
-            
+
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="name">Name *</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    value={customerInfo.name}
-                    onChange={handleInputChange}
-                    className={errors.name ? "border-red-500" : ""}
-                  />
+                  <Input id="name" name="name" value={customerInfo.name} onChange={handleInputChange} className={errors.name ? "border-red-500" : ""} />
                   {errors.name && <p className="text-red-500 text-sm mt-1">Name is required</p>}
                 </div>
 
@@ -711,11 +638,7 @@ export default function Checkout() {
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <Checkbox 
-                    id="saveInfo" 
-                    checked={saveInfo} 
-                    onCheckedChange={handleSaveInfoChange}
-                  />
+                  <Checkbox id="saveInfo" checked={saveInfo} onCheckedChange={handleSaveInfoChange} />
                   <Label htmlFor="saveInfo" className="text-sm text-muted-foreground">
                     Save my information for faster checkout next time
                   </Label>
@@ -828,19 +751,15 @@ export default function Checkout() {
                           onChange={handleInputChange}
                           className={errors.deliveryAddress ? "border-red-500" : ""}
                         />
-                        {errors.deliveryAddress && (
-                          <p className="text-red-500 text-sm mt-1">Delivery address is required</p>
-                        )}
-                        <p className="text-sm text-muted-foreground mt-2">
-                          Delivery cost will be disclosed when we contact you.
-                        </p>
+                        {errors.deliveryAddress && <p className="text-red-500 text-sm mt-1">Delivery address is required</p>}
+                        <p className="text-sm text-muted-foreground mt-2">Delivery cost will be disclosed when we contact you.</p>
                       </div>
                     )}
                   </div>
                 </div>
 
                 <Button type="submit" className="w-full mt-6" disabled={isSubmitting}>
-                  {isSubmitting ? "Processing..." : "Submit Order"}
+                  {isSubmitting ? "Processing..." : "Update Order"}
                 </Button>
               </form>
             </CardContent>
@@ -848,5 +767,5 @@ export default function Checkout() {
         </div>
       </div>
     </main>
-  )
+  );
 }

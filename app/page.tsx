@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Info,
   AlertTriangle,
+  File,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -304,6 +305,7 @@ export default function Home() {
   } = useInfiniteScroll<AddOn>({
     pageSize: 6,
     fetchFunction: async (page, size) => {
+
       try {
         return await fetchApi<AddOn[]>(`addons?page=${page}&size=${size}`);
       } catch (error) {
@@ -332,6 +334,9 @@ export default function Home() {
   // State for cart items
   const [cart, setCart] = useState<CartItem[]>([])
 
+  // State for whether the user has previous orders
+  const [hasOrders, setHasOrders] = useState(false);
+
   // State for product quantities and notes
   const [quantities, setQuantities] = useState<Record<number, number>>({})
   const [notes, setNotes] = useState<Record<number, string>>({})
@@ -339,6 +344,14 @@ export default function Home() {
   // State for selected add-ons
   const [selectedAddons, setSelectedAddons] = useState<Record<number, SelectedAddOn[]>>({})
 
+  useEffect(() => {
+    // Check for existing orders
+    const savedOrders = localStorage.getItem('pastryOrders');
+    if (savedOrders) {
+      const parsedOrders = JSON.parse(savedOrders);
+      setHasOrders(Array.isArray(parsedOrders) && parsedOrders.length > 0);
+    }
+  }, [])
   // Load products and cart from localStorage on component mount
   // Update the useEffect to handle cart and its dependencies
   useEffect(() => {
@@ -710,7 +723,12 @@ export default function Home() {
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-3xl font-bold text-primary">Jus Treats</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
+          {hasOrders && (
+            <Button variant="secondary" onClick={() => router.push('/orders')} className="flex items-center">
+              <File className="h-5 w-5 mr-0" />
+              <span className="hidden sm:inline">Orders</span>
+            </Button>
+          )} <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
             <Calendar className="h-5 w-5 mr-0" />
             <span className="hidden sm:inline">Events</span>
             {selectedEventId && (

@@ -1,18 +1,25 @@
 "use client"
 
 import React, { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { fetchApi } from '@/utils/api'
 
-const OrderCard = ({ order, onShowDetails }: { order: any, onShowDetails: (orderId: string) => void }) => {
+const OrderCard = ({ order, onShowDetails, onEditOrder }: { order: any, onShowDetails: (orderId: string) => void, onEditOrder: (orderId: string) => void }) => {
   return (
     <div className="border rounded-md p-4 mb-4">
       <p className="font-medium">Order ID: {order.unique_order_id}</p>
       <p className="text-sm text-muted-foreground">Date: {order.date}</p>
-      <Button size="sm" onClick={() => onShowDetails(order.unique_order_id)} className="mt-2">
-        Show Details
-      </Button>
+      <div className="mt-2 flex gap-2">
+        <Button size="sm" onClick={() => onShowDetails(order.unique_order_id)}>
+          Show Details
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => onEditOrder(order.unique_order_id)}>
+          Edit Order
+        </Button>
+      </div>
     </div>
+
   )
 }
 
@@ -29,6 +36,7 @@ const OrderDetails = ({ order }: { order: any }) => {
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([])
+  const router = useRouter()
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null)
 
   useEffect(() => {
@@ -43,10 +51,14 @@ export default function OrdersPage() {
     setSelectedOrder(order)
   }
 
+  const handleEditOrder = (orderId: string) => {
+    router.push(`/orders/${orderId}`)
+  }
+
   return (
     <main className="container mx-auto p-4">
       <h1 className="text-3xl font-bold mb-6">Your Orders</h1>
-      {orders.map((order) => <OrderCard key={order.unique_order_id} order={order} onShowDetails={handleShowDetails} />)}
+      {orders.map((order) => <OrderCard key={order.unique_order_id} order={order} onShowDetails={handleShowDetails} onEditOrder={handleEditOrder} />)}
       {selectedOrder && <OrderDetails order={selectedOrder} />}
     </main>
   )
