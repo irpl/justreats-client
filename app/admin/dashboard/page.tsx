@@ -191,7 +191,7 @@ export default function AdminDashboard() {
     hasMore: hasMoreProducts,
     resetItems: resetProducts,
   } = useInfiniteScroll<Product>({
-    pageSize: 9,
+    pageSize: 1000,
     fetchFunction: async (page, size) => {
       try {
         // Get the auth token from localStorage
@@ -219,7 +219,7 @@ export default function AdminDashboard() {
     hasMore: hasMoreAddons,
     resetItems: resetAddons,
   } = useInfiniteScroll<AddOn>({
-    pageSize: 9,
+    pageSize: 1000,
     fetchFunction: async (page, size) => {
       try {
         // Get the auth token from localStorage
@@ -255,7 +255,7 @@ export default function AdminDashboard() {
     hasMore: hasMoreEvents,
     resetItems: resetEvents,
   } = useInfiniteScroll<Event>({
-    pageSize: 6,
+    pageSize: 1000,
     fetchFunction: async (page, size) => {
       try {
         // Get the auth token from localStorage
