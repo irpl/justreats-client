@@ -2,8 +2,8 @@
 
 import React, { type ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle, UserPlus, User } from "lucide-react";
+import { useRouter, useParams } from "next/navigation";
+import { ArrowLeft, Check, Calendar, MapPin, AlertTriangle, UserPlus, User, X, Plus, Minus, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,15 +13,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Product, CartItem, CustomerInfo, ContactMethod, CartAddOn, Event } from "@/types/shop-types";
 import { formatDate } from "@/lib/utils";
 import { fetchApi, getApiUrl } from "@/utils/api";
-import { useSearchParams } from "next/navigation";
 
 export default function EditOrder() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const uniqueOrderId = searchParams.get("unique_order_id") as string;
+  const params = useParams<{ unique_order_id: string }>();
+  const uniqueOrderId = params.unique_order_id;
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -59,14 +60,29 @@ export default function EditOrder() {
     eventId: false,
   });
 
+  // --- State for Add Item Modal ---
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
+  const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [modalQuantity, setModalQuantity] = useState(1);
+  const [modalNotes, setModalNotes] = useState("");
+  const [modalSelectedAddons, setModalSelectedAddons] = useState<CartAddOn[]>([]);
+  // --- End State for Add Item Modal ---
+
   // Load cart data, events, and saved customer info from localStorage on component mount
-    useEffect(() => {
+  useEffect(() => {
+    console.log("EditOrder useEffect triggered.");
+
     const loadOrderData = async () => {
+      console.log("Unique Order ID from params hook:", uniqueOrderId);
+
+      let initialCart: CartItem[] = []; // Define initialCart here
+
       if (uniqueOrderId) {
         try {
           const orderData = await fetchApi<{ items: CartItem[]; customer: CustomerInfo; eventId: number }>(
-            `orders/${uniqueOrderId}`
+            `orders/unique/${uniqueOrderId}`
           );
+          initialCart = orderData.items; // Assign fetched items
           setCart(orderData.items);
           console.log("Order Data from server:", orderData);
           setCustomerInfo(orderData.customer);
@@ -76,14 +92,19 @@ export default function EditOrder() {
           return;
         }
       } else {
-        setSubmitError("No order ID provided.");
+        setSubmitError("No order ID provided in params.");
+        console.log("No uniqueOrderId found in params.");
         return;
       }
+
+      let loadedProducts: Product[] = []; // Define loadedProducts
+      let loadedAddons: any[] = []; // Define loadedAddons
 
       const savedProducts = localStorage.getItem("pastryProducts");
       if (savedProducts) {
         try {
-          setProducts(JSON.parse(savedProducts));
+          loadedProducts = JSON.parse(savedProducts); // Assign parsed products
+          setProducts(loadedProducts);
         } catch (error) {
           console.error("Error parsing products:", error);
         }
@@ -92,7 +113,8 @@ export default function EditOrder() {
       const savedAddons = localStorage.getItem("pastryAddons");
       if (savedAddons) {
         try {
-          setAddons(JSON.parse(savedAddons));
+          loadedAddons = JSON.parse(savedAddons); // Assign parsed addons
+          setAddons(loadedAddons);
         } catch (error) {
           console.error("Error parsing addons:", error);
         }
@@ -119,45 +141,46 @@ export default function EditOrder() {
       if (savedCustomerInfo) {
         try {
           const parsedInfo = JSON.parse(savedCustomerInfo) as CustomerInfo;
-          setCustomerInfo(parsedInfo);
+          // Don't overwrite initially fetched customer info if using stored info is false initially
+          if (useStoredInfo) {
+             setCustomerInfo(parsedInfo);
+          }
           setHasStoredInfo(true);
-          setUseStoredInfo(true);
+          // setUseStoredInfo(true); // Don't force true here, respect initial state
         } catch (error) {
           console.error("Error parsing saved customer info:", error);
         }
       }
 
       // Verify that all needed products and addons for the cart are available
-      if (savedProducts && savedAddons) {
+      // Use the loaded data directly instead of relying on potentially stale state
+      if (loadedProducts.length > 0 && loadedAddons.length > 0 && initialCart.length > 0) {
         try {
-          const productList = JSON.parse(savedProducts) as Product[];
-          const addonsList = JSON.parse(savedAddons) as any[];
-
           // Check if any product in cart is missing from products list
-          const missingProducts = cart.filter((item) => !productList.some((p) => p.id === item.productId));
+          const missingProducts = initialCart.filter((item) => !loadedProducts.some((p) => p.id === item.productId));
 
           if (missingProducts.length > 0) {
             console.error("Some products in cart are missing from product list:", missingProducts);
             // Remove problematic items from cart
-            const filteredCart = cart.filter((item) => productList.some((p) => p.id === item.productId));
-            setCart(filteredCart);
+            const filteredCart = initialCart.filter((item) => loadedProducts.some((p) => p.id === item.productId));
+            setCart(filteredCart); // Update cart state directly
+            initialCart = filteredCart; // Update local variable too
           }
 
           // Check for missing addons
           let hasInvalidAddons = false;
-
-          cart.forEach((item) => {
-            const validAddons = item.addons.filter((addon) => addonsList.some((a) => a.id === addon.addonId));
-
-            if (validAddons.length !== item.addons.length) {
-              hasInvalidAddons = true;
-              // Update item with only valid addons
-              item.addons = validAddons;
-            }
+          const validatedCart = initialCart.map(item => {
+             const validAddons = item.addons.filter((addon) => loadedAddons.some((a) => a.addonId === addon.addonId));
+             if (validAddons.length !== item.addons.length) {
+                 hasInvalidAddons = true;
+                 return { ...item, addons: validAddons }; // Return updated item
+             }
+             return item; // Return original item
           });
 
+
           if (hasInvalidAddons) {
-            setCart([...cart]);
+            setCart(validatedCart); // Update cart state with validated items
           }
         } catch (error) {
           console.error("Error validating cart data:", error);
@@ -168,13 +191,110 @@ export default function EditOrder() {
     };
 
     loadOrderData();
-  }, []);
+    // Add useStoredInfo to dependency array if customerInfo setting depends on it
+  }, [uniqueOrderId, useStoredInfo]);
 
   // Check if cart has event-only items
   const hasEventOnlyItems = cart.some((item) => {
     const product = products.find((p) => p.id === item.productId);
     return product?.eventOnly;
   });
+
+  // Filter available products for the modal (exclude event-only if needed, etc.)
+  // For now, just show all products. We can refine this.
+  const availableProductsForModal = products;
+
+  // --- Handlers for Add Item Modal ---
+
+  const handleOpenAddItemModal = () => {
+    setSelectedProductForModal(null);
+    setModalQuantity(1);
+    setModalNotes("");
+    setModalSelectedAddons([]);
+    setIsAddItemModalOpen(true);
+  };
+
+  const handleSelectProductForModal = (product: Product) => {
+    setSelectedProductForModal(product);
+    // Reset specific config for the new product
+    setModalQuantity(1);
+    setModalNotes("");
+    setModalSelectedAddons([]);
+    // Logic to pre-select required addons could go here
+  };
+
+  // Placeholder for handling addon selection within the modal
+  const handleModalAddonChange = (addonId: number, checked: boolean, quantity: number = 1) => {
+    setModalSelectedAddons(prev => {
+        if (checked) {
+            // Add or update addon
+            const existing = prev.find(a => a.addonId === addonId);
+            if (existing) {
+                // If addon exists, update its quantity (if applicable, otherwise just ensure it's present)
+                // For simplicity, let's assume addon quantity isn't directly editable here yet
+                return prev.map(a => a.addonId === addonId ? { ...a, quantity: quantity } : a);
+            } else {
+                // Add new addon
+                return [...prev, { addonId, quantity, notes: '' }]; // Add basic addon structure
+            }
+        } else {
+            // Remove addon
+            return prev.filter(a => a.addonId !== addonId);
+        }
+    });
+  };
+
+  // Placeholder for handling quantity change in modal
+  const handleModalQuantityChange = (delta: number) => {
+     setModalQuantity(prev => Math.max(1, prev + delta)); // Ensure quantity is at least 1
+  };
+
+  // Placeholder for handling notes change in modal
+  const handleModalNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+     setModalNotes(e.target.value);
+  };
+
+  // Handler for changing addon quantity in the modal
+  const handleModalAddonQuantityChange = (addonId: number, quantity: number) => {
+    // Ensure quantity is a non-negative number
+    const newQuantity = Math.max(0, isNaN(quantity) ? 0 : quantity);
+
+    setModalSelectedAddons(prev => {
+      const existingAddon = prev.find(a => a.addonId === addonId);
+
+      if (newQuantity === 0 && existingAddon) {
+        // Remove addon if quantity becomes 0
+        return prev.filter(a => a.addonId !== addonId);
+      } else if (existingAddon) {
+        // Update quantity of existing addon
+        return prev.map(a =>
+          a.addonId === addonId ? { ...a, quantity: newQuantity } : a
+        );
+      } else if (newQuantity > 0) {
+        // Add new addon if quantity > 0 and it wasn't previously selected
+        // (This case might be less common if the input only appears after checking the box)
+        return [...prev, { addonId, quantity: newQuantity, notes: '' }];
+      }
+      // If quantity is 0 and addon wasn't selected, do nothing
+      return prev;
+    });
+  };
+
+  const handleConfirmAddItem = () => {
+    if (!selectedProductForModal) return;
+
+    const newCartItem: CartItem = {
+      productId: selectedProductForModal.id,
+      quantity: modalQuantity,
+      notes: modalNotes,
+      addons: modalSelectedAddons,
+    };
+
+    setCart(prevCart => [...prevCart, newCartItem]);
+    setIsAddItemModalOpen(false); // Close modal after adding
+  };
+
+  // --- End Handlers for Add Item Modal ---
 
   // Get unique event IDs from event-only items
   const eventOnlyEventIds = Array.from(
@@ -404,6 +524,31 @@ export default function EditOrder() {
   // Get selected event
   const selectedEvent = customerInfo.eventId ? events.find((event) => event.id === customerInfo.eventId) : null;
 
+  // Handler to change item quantity
+  const handleQuantityChange = (itemIndex: number, delta: number) => {
+    setCart((prevCart) => {
+      const newCart = [...prevCart];
+      const item = newCart[itemIndex];
+      if (item) {
+        const newQuantity = item.quantity + delta;
+        if (newQuantity <= 0) {
+          // Remove item if quantity is 0 or less
+          return newCart.filter((_, index) => index !== itemIndex);
+        } else {
+          // Update quantity
+          newCart[itemIndex] = { ...item, quantity: newQuantity };
+          return newCart;
+        }
+      }
+      return prevCart; // Should not happen if index is valid
+    });
+  };
+
+  // Handler to remove an item completely
+  const handleRemoveItem = (itemIndex: number) => {
+    setCart((prevCart) => prevCart.filter((_, index) => index !== itemIndex));
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[50vh]">
@@ -415,7 +560,7 @@ export default function EditOrder() {
   if (cart.length === 0 && !orderUpdated) {
     return (
       <div className="container mx-auto px-4 py-8 flex flex-col items-center min-h-[50vh]">
-        <p className="mb-4">Your cart is empty</p>
+        <p className="mb-4">Your order is now empty.</p>
         <Button onClick={goBack}>Return to Orders</Button>
       </div>
     );
@@ -456,15 +601,16 @@ export default function EditOrder() {
       <div className="grid md:grid-cols-2 gap-8">
         {/* Order Summary */}
         <div>
-          <h2 className="text-2xl font-bold mb-4">Order Summary</h2>
+          <h2 className="text-2xl font-bold mb-4">Edit Order Summary</h2>
           <Card>
             <CardContent className="p-6">
               <div className="space-y-4">
-                <div className="grid grid-cols-8 text-sm font-medium text-muted-foreground border-b pb-2">
+                <div className="grid grid-cols-10 text-sm font-medium text-muted-foreground border-b pb-2">
                   <div className="col-span-4">Item</div>
                   <div className="col-span-1 text-right">Unit</div>
-                  <div className="col-span-1 text-center">Qty</div>
-                  <div className="col-span-2 text-right">Subtotal</div>
+                  <div className="col-span-3 text-center">Quantity</div>
+                  <div className="col-span-1 text-right">Subtotal</div>
+                  <div className="col-span-1"></div>
                 </div>
 
                 {cart.map((item, index) => {
@@ -475,9 +621,8 @@ export default function EditOrder() {
                   const itemTotalWithAddons = calculateItemPrice(item.productId, item.addons) * item.quantity;
 
                   return (
-                    <div key={index} className="space-y-3 pb-3 border-b last:border-0">
-                      {/* Product row */}
-                      <div className="grid grid-cols-8 items-start">
+                    <div key={`${item.productId}-${index}`} className="space-y-3 pb-3 border-b last:border-0">
+                      <div className="grid grid-cols-10 items-center">
                         <div className="col-span-4">
                           <div className="flex items-start gap-2">
                             <div>
@@ -492,35 +637,65 @@ export default function EditOrder() {
                           </div>
                         </div>
                         <div className="col-span-1 text-right">${productBasePrice.toFixed(2)}</div>
-                        <div className="col-span-1 text-center">{item.quantity}</div>
-                        <div className="col-span-2 text-right font-medium">${(productBasePrice * item.quantity).toFixed(2)}</div>
+                        <div className="col-span-3 flex items-center justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleQuantityChange(index, -1)}
+                            disabled={isSubmitting}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-8 text-center font-medium">{item.quantity}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleQuantityChange(index, 1)}
+                            disabled={isSubmitting}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <div className="col-span-1 text-right font-medium">${(productBasePrice * item.quantity).toFixed(2)}</div>
+                        <div className="col-span-1 flex justify-end">
+                           <Button
+                             variant="ghost"
+                             size="icon"
+                             className="h-6 w-6 text-destructive hover:text-destructive"
+                             onClick={() => handleRemoveItem(index)}
+                             disabled={isSubmitting}
+                           >
+                             <X className="h-4 w-4" />
+                           </Button>
+                        </div>
                       </div>
 
-                      {/* Add-ons rows */}
                       {item.addons.length > 0 && (
-                        <div className="space-y-2 pl-4 border-l-2 border-muted">
+                        <div className="space-y-2 pl-4 ml-2 border-l-2 border-muted col-span-10">
                           {item.addons.map((cartAddon, addonIndex) => {
                             const addon = addons.find((a) => a.id === cartAddon.addonId);
                             if (!addon) return null;
 
                             return (
-                              <div key={addonIndex} className="grid grid-cols-8 items-start text-sm">
+                              <div key={addonIndex} className="grid grid-cols-10 items-start text-sm">
                                 <div className="col-span-4">
                                   <p>+ {addon.name}</p>
                                   {cartAddon.notes && <p className="text-xs text-muted-foreground italic">Note: {cartAddon.notes}</p>}
                                 </div>
                                 <div className="col-span-1 text-right">${addon.price.toFixed(2)}</div>
-                                <div className="col-span-1 text-center">{cartAddon.quantity}</div>
-                                <div className="col-span-2 text-right">${(addon.price * cartAddon.quantity).toFixed(2)}</div>
+                                <div className="col-span-3 text-center">{cartAddon.quantity}</div>
+                                <div className="col-span-1 text-right">${(addon.price * cartAddon.quantity).toFixed(2)}</div>
+                                <div className="col-span-1"></div>
                               </div>
                             );
                           })}
 
-                          {/* Item total with add-ons */}
-                          <div className="grid grid-cols-8 items-start text-sm pt-1 border-t">
-                            <div className="col-span-4 font-medium">Item Total</div>
-                            <div className="col-span-2"></div>
+                          <div className="grid grid-cols-10 items-start text-sm pt-2 mt-2 border-t">
+                            <div className="col-span-7 font-medium">Item Total (incl. add-ons)</div>
                             <div className="col-span-2 text-right font-medium">${itemTotalWithAddons.toFixed(2)}</div>
+                            <div className="col-span-1"></div>
                           </div>
                         </div>
                       )}
@@ -528,7 +703,6 @@ export default function EditOrder() {
                   );
                 })}
 
-                {/* Order totals section */}
                 <div className="pt-3 border-t mt-3">
                   <div className="flex justify-between text-lg font-bold">
                     <p>Order Total</p>
@@ -539,7 +713,6 @@ export default function EditOrder() {
             </CardContent>
           </Card>
 
-          {/* Event-only items warning */}
           {hasEventOnlyItems && (
             <div className="mt-4">
               <Card className="border-amber-200 bg-amber-50">
@@ -553,6 +726,136 @@ export default function EditOrder() {
               </Card>
             </div>
           )}
+
+          {/* Add More Items Button */}
+          <Dialog open={isAddItemModalOpen} onOpenChange={setIsAddItemModalOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="mt-4 w-full" onClick={handleOpenAddItemModal}>
+                <ShoppingCart className="mr-2 h-4 w-4" /> Add More Items
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[600px]"> {/* Wider modal */}
+              <DialogHeader>
+                <DialogTitle>{selectedProductForModal ? `Configure ${selectedProductForModal.name}` : "Add Item to Order"}</DialogTitle>
+              </DialogHeader>
+
+              {/* Modal Content Switches Between Steps */}
+              {!selectedProductForModal ? (
+                // Step 1: Product List
+                <ScrollArea className="h-[400px] pr-4"> {/* Added ScrollArea */}
+                   <div className="space-y-3 py-4">
+                    {availableProductsForModal.map((product) => (
+                      <div key={product.id} className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50">
+                        <div>
+                          <p className="font-medium">{product.name}</p>
+                          <p className="text-sm text-muted-foreground">${product.price.toFixed(2)}</p>
+                          {/* Add description or image if available */}
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => handleSelectProductForModal(product)}>
+                          Select
+                        </Button>
+                      </div>
+                    ))}
+                   </div>
+                 </ScrollArea>
+              ) : (
+                // Step 2: Product Configuration (Basic Structure)
+                <div className="space-y-4 py-4">
+                   <h3 className="text-lg font-semibold">{selectedProductForModal.name}</h3>
+                   <p className="text-sm text-muted-foreground">{selectedProductForModal.description}</p>
+                   <p className="text-lg font-bold">${selectedProductForModal.price.toFixed(2)}</p>
+                   <Separator />
+
+                   {/* Quantity */}
+                   <div className="flex items-center gap-4">
+                        <Label className="w-16">Quantity</Label>
+                        <div className="flex items-center justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8" // Slightly larger buttons
+                            onClick={() => handleModalQuantityChange(-1)}
+                          >
+                            <Minus className="h-4 w-4" />
+                          </Button>
+                          <span className="w-10 text-center font-medium text-lg">{modalQuantity}</span>
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleModalQuantityChange(1)}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                   </div>
+
+                   {/* Notes */}
+                   <div>
+                      <Label htmlFor="modalNotes">Notes (Optional)</Label>
+                      <Textarea
+                         id="modalNotes"
+                         value={modalNotes}
+                         onChange={handleModalNotesChange}
+                         placeholder="Any special requests?"
+                         className="mt-1"
+                      />
+                   </div>
+
+                   {/* Add-ons (Placeholder UI) */}
+                   {addons.filter(a => selectedProductForModal.applicableAddons?.includes(a.id)).length > 0 && (
+                       <div>
+                           <h4 className="font-medium mb-2">Available Add-ons</h4>
+                           <div className="space-y-2">
+                              {addons
+                                .filter(a => selectedProductForModal.applicableAddons?.includes(a.id))
+                                .map(addon => {
+                                    const isSelected = modalSelectedAddons.some(msa => msa.addonId === addon.id);
+                                    return (
+                                        <div key={addon.id} className="flex items-center justify-between p-2 border rounded-md text-sm">
+                                             <div className="flex items-center gap-2">
+                                                <Checkbox
+                                                    id={`modal-addon-${addon.id}`}
+                                                    checked={isSelected}
+                                                    onCheckedChange={(checked) => handleModalAddonChange(addon.id, !!checked)} // Basic add/remove
+                                                />
+                                                <Label htmlFor={`modal-addon-${addon.id}`}>
+                                                    {addon.name} (+${addon.price.toFixed(2)})
+                                                </Label>
+                                                {/* TODO: Add quantity input for addons if needed */}
+                                                <Input type="number" min={0} value={modalSelectedAddons.find(msa => msa.addonId === addon.id)?.quantity || 0} onChange={(e) => handleModalAddonQuantityChange(addon.id, parseInt(e.target.value))} />
+                                             </div>
+                                             {/* Display addon details/description? */}
+                                             <p>{addon.description}</p>
+                                        </div>
+                                    );
+                                })
+                              }
+                           </div>
+                       </div>
+                   )}
+
+                   {/* TODO: Add error display if needed (e.g., for required addons) */}
+
+                   <DialogFooter className="mt-6 gap-2 sm:justify-between"> {/* Adjusted footer layout */}
+                     <Button variant="outline" onClick={() => setSelectedProductForModal(null)}>
+                        Back to Products
+                     </Button>
+                     <Button onClick={handleConfirmAddItem}>Confirm Add Item</Button>
+                   </DialogFooter>
+                </div>
+              )}
+
+               {/* Show close button only when showing product list? */}
+               {!selectedProductForModal && (
+                  <DialogFooter>
+                     <DialogClose asChild>
+                        <Button variant="ghost">Cancel</Button>
+                     </DialogClose>
+                  </DialogFooter>
+                )}
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Customer Information Form */}
@@ -568,7 +871,6 @@ export default function EditOrder() {
               </div>
             )}
             <CardContent className="p-6">
-              {/* Show saved information toggle if there's stored info */}
               {hasStoredInfo && (
                 <div className="mb-6 space-y-4">
                   <div className="flex items-center justify-between p-4 border rounded-md bg-muted/20">
@@ -673,14 +975,13 @@ export default function EditOrder() {
                 <div className="space-y-4">
                   <h3 className="font-medium">Pickup or Delivery Options</h3>
 
-                  {/* Event Pickup Option */}
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="eventPickup"
                         checked={customerInfo.pickupAtEvent}
                         onCheckedChange={handleEventPickupChange}
-                        disabled={hasEventOnlyItems} // Disable toggling if there are event-only items
+                        disabled={hasEventOnlyItems}
                       />
                       <Label htmlFor="eventPickup" className={hasEventOnlyItems ? "font-medium" : ""}>
                         Pickup at Event
@@ -726,14 +1027,13 @@ export default function EditOrder() {
                     )}
                   </div>
 
-                  {/* Delivery Option - Disabled if there are event-only items */}
                   <div className="space-y-2">
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="delivery"
                         checked={customerInfo.delivery}
                         onCheckedChange={handleDeliveryChange}
-                        disabled={hasEventOnlyItems} // Disable if there are event-only items
+                        disabled={hasEventOnlyItems}
                       />
                       <Label htmlFor="delivery">
                         I would like delivery

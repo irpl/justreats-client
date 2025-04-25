@@ -230,7 +230,7 @@ export default function Home() {
   const router = useRouter()
   const [allAddons, setAllAddons] = useState<AddOn[]>([])
   const [allEvents, setAllEvents] = useState<Event[]>([])
-  const [banner, setBanner] = useState<Banner>(defaultBanner)
+  const [banner, setBanner] = useState<Banner>({} as Banner)
   const [contactInfo, setContactInfo] = useState<ContactInfo>(defaultContactInfo)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -724,13 +724,13 @@ export default function Home() {
         <h1 className="text-3xl font-bold text-primary">Jus Treats</h1>
         <div className="flex gap-2">
           {hasOrders && (
-            <Button variant="secondary" onClick={() => router.push('/orders')} className="flex items-center">
+            <Button variant="outline" onClick={() => router.push('/orders')} className="flex items-center">
               <File className="h-5 w-5 mr-0" />
               <span className="hidden sm:inline">Orders</span>
             </Button>
           )} <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
             <Calendar className="h-5 w-5 mr-0" />
-            <span className="hidden sm:inline">Events</span>
+            <span className="hidden sm:inline">Events</span>  
             {selectedEventId && (
               <Badge className="ml-2" variant="secondary">
                 1
