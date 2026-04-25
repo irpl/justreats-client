@@ -1,240 +1,61 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
 import {
   Instagram,
   Mail,
-  MinusCircle,
-  PlusCircle,
   ShoppingBag,
   PhoneIcon as WhatsApp,
-  Plus,
   X,
   Calendar,
   Filter,
-  CalendarDays,
   MapPin,
-  CreditCard,
-  ChevronRight,
-  Info,
-  AlertTriangle,
   File,
+  Heart,
 } from "lucide-react"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Badge } from "@/components/ui/badge"
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion"
 import { EventBanner } from "@/components/event-banner"
-import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Drawer,
-  DrawerContent,
-  DrawerDescription,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer"
+import { FlyerHero } from "@/components/flyer-hero"
+import { FlyerPickupCard } from "@/components/flyer-pickup-card"
+import { FlyerProductCard } from "@/components/flyer-product-card"
+import { OrderingDrawer } from "@/components/ordering-drawer"
+import { CartSheet } from "@/components/cart-sheet"
+import { DashedFrame, HeartDecor, Ribbon, SparkleDecor } from "@/components/flyer-decor"
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll"
-import { fetchApi, getApiUrl, getProducts } from "@/utils/api";
-import { LoadingSpinner } from "@/components/loading-spinner"
-import type { Product, CartItem, Banner, ContactInfo, AddOn, SelectedAddOn, Event, CartAddOn } from "@/types/shop-types"
-
-// Default products if none exist in localStorage
-const defaultProducts: Product[] = [
-  {
-    id: 1,
-    name: "Chocolate Croissant",
-    description: "Buttery, flaky pastry filled with rich chocolate",
-    price: 3.99,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [1, 3],
-  },
-  {
-    id: 2,
-    name: "Strawberry Tart",
-    description: "Sweet pastry crust filled with custard and topped with fresh strawberries",
-    price: 4.99,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [1, 2],
-  },
-  {
-    id: 3,
-    name: "Vanilla Macaron",
-    description: "Light and airy almond meringue cookies with vanilla buttercream filling",
-    price: 2.49,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [3],
-  },
-  {
-    id: 4,
-    name: "Cinnamon Roll",
-    description: "Soft, sweet roll with cinnamon-sugar filling and cream cheese frosting",
-    price: 3.49,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [1],
-  },
-  {
-    id: 5,
-    name: "Lemon Cake",
-    description: "Moist cake with zesty lemon flavor and sweet glaze",
-    price: 4.49,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [1, 2, 3],
-  },
-  {
-    id: 6,
-    name: "Chocolate Truffle",
-    description: "Rich, creamy chocolate ganache rolled in cocoa powder",
-    price: 1.99,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [3],
-  },
-  // Event-only products
-  {
-    id: 7,
-    name: "Festival Special Cupcake",
-    description: "Limited edition cupcake with seasonal decorations",
-    price: 3.99,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [1, 2],
-    eventOnly: true,
-    eventId: 1,
-  },
-  {
-    id: 8,
-    name: "Market Day Cookies",
-    description: "Freshly baked cookies only available at our market events",
-    price: 2.49,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [3],
-    eventOnly: true,
-    eventId: 1,
-  },
-  {
-    id: 9,
-    name: "Holiday Gingerbread House",
-    description: "Festive gingerbread house kit, perfect for the holiday season",
-    price: 12.99,
-    image: "/placeholder.svg?height=200&width=200",
-    available: true,
-    applicableAddons: [2],
-    eventOnly: true,
-    eventId: 2,
-  },
-]
-
-// Default add-ons
-const defaultAddons: AddOn[] = [
-  {
-    id: 1,
-    name: "Custom Message Plaque",
-    description: "Add a personalized message on a chocolate plaque",
-    price: 2.99,
-    applicableProducts: [1, 2, 4, 5, 7],
-    available: true,
-  },
-  {
-    id: 2,
-    name: "Special Decoration",
-    description: "Add special decorative elements like flowers, figures, etc.",
-    price: 3.99,
-    applicableProducts: [2, 5, 7, 9],
-    available: true,
-  },
-  {
-    id: 3,
-    name: "Gift Packaging",
-    description: "Special gift box with ribbon and card",
-    price: 1.99,
-    applicableProducts: [1, 3, 5, 6, 8],
-    available: true,
-  },
-]
-
-// Default events
-const defaultEvents: Event[] = [
-  {
-    id: 1,
-    name: "Downtown Farmers Market",
-    description: "Join us at the weekly farmers market where we'll have special treats and seasonal favorites!",
-    date: "2025-04-10T09:00:00",
-    endDate: "2025-04-10T14:00:00",
-    location: "Central Plaza, Downtown",
-    image: "/placeholder.svg?height=300&width=600",
-    active: true,
-    featured: true,
-  },
-  {
-    id: 2,
-    name: "Holiday Bake Sale",
-    description: "Our annual holiday bake sale with festive treats and gift ideas for the season.",
-    date: "2025-12-15T10:00:00",
-    endDate: "2025-12-16T18:00:00",
-    location: "Community Center, 123 Main St",
-    image: "/placeholder.svg?height=300&width=600",
-    active: true,
-  },
-  {
-    id: 3,
-    name: "Spring Food Festival",
-    description: "A celebration of spring flavors featuring our seasonal specialties.",
-    date: "2025-05-20T11:00:00",
-    endDate: "2025-05-22T20:00:00",
-    location: "City Park Pavilion",
-    image: "/placeholder.svg?height=300&width=600",
-    active: true,
-  },
-]
-
-// Default contact info
-const defaultContactInfo: ContactInfo = {
-  instagram: "sweetdelights",
-  whatsapp: "+1234567890",
-  email: "info@sweetdelights.com",
-}
-
-// Default banner
-const defaultBanner: Banner = {
-  enabled: true,
-  imageUrl: "/placeholder.svg?height=400&width=1200",
-  title: "Special Summer Collection",
-  description: "Try our new seasonal fruit tarts and refreshing iced pastries!",
-  linkToEventId: 1, // Link to the first event
-}
-
-// Function to format date
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-}
+import { fetchApi, getProducts } from "@/utils/api"
+import {
+  defaultAddons,
+  defaultBanner,
+  defaultContactInfo,
+  defaultEvents,
+  defaultProducts,
+  formatLongDate,
+} from "@/app/_home-data"
+import type {
+  AddOn,
+  Banner,
+  CartItem,
+  ContactInfo,
+  Event,
+  Product,
+  SelectedAddOn,
+} from "@/types/shop-types"
+import { cn } from "@/lib/utils"
 
 export default function Home() {
   const router = useRouter()
-  const [allAddons, setAllAddons] = useState<AddOn[]>([])
-  const [allEvents, setAllEvents] = useState<Event[]>([])
   const [banner, setBanner] = useState<Banner>({} as Banner)
   const [contactInfo, setContactInfo] = useState<ContactInfo>(defaultContactInfo)
   const [isLoading, setIsLoading] = useState(true)
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [hasOrders, setHasOrders] = useState(false)
+  const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
+  const [showEventsSheet, setShowEventsSheet] = useState(false)
+  const [showCart, setShowCart] = useState(false)
+  const [orderingProduct, setOrderingProduct] = useState<Product | null>(null)
 
-  // Replace the products useState with the infinite scroll hook
   const {
     items: products,
     loading: loadingProducts,
@@ -244,29 +65,21 @@ export default function Home() {
     pageSize: 6,
     fetchFunction: async (page, size) => {
       try {
-        const products = await getProducts(false, { page, size })
-        return products;
+        return await getProducts(false, { page, size })
       } catch (error) {
         console.error("Error fetching products:", error)
-        // Fallback to localStorage if API fails
-        let storedProducts = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
-
-        // If no products in localStorage, use defaults and save them
-        if (storedProducts.length === 0) {
-          storedProducts = defaultProducts
+        let stored = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
+        if (stored.length === 0) {
+          stored = defaultProducts
           localStorage.setItem("pastryProducts", JSON.stringify(defaultProducts))
         }
-
-        // Return a limited subset to simulate pagination
-        const start = (page - 1) * size // Adjusted for 1-based pagination
-        const end = start + size
-        return storedProducts.slice(start, end)
+        const start = (page - 1) * size
+        return stored.slice(start, start + size)
       }
     },
     enabled: !isLoading,
   })
 
-  // Replace the event fetching with infinite scroll
   const {
     items: events,
     loading: loadingEvents,
@@ -276,968 +89,506 @@ export default function Home() {
     pageSize: 3,
     fetchFunction: async (page, size) => {
       try {
-        return await fetchApi<Event[]>(`events?page=${page}&size=${size}`);
+        return await fetchApi<Event[]>(`events?page=${page}&size=${size}`)
       } catch (error) {
         console.error("Error fetching events:", error)
-        // Fallback to localStorage if API fails
-        let storedEvents = JSON.parse(localStorage.getItem("pastryEvents") || "[]")
-
-        if (storedEvents.length === 0) {
-          storedEvents = defaultEvents
+        let stored = JSON.parse(localStorage.getItem("pastryEvents") || "[]")
+        if (stored.length === 0) {
+          stored = defaultEvents
           localStorage.setItem("pastryEvents", JSON.stringify(defaultEvents))
         }
-
-        // Return a limited subset to simulate pagination
-        const start = (page - 1) * size // Adjusted for 1-based pagination
-        const end = start + size
-        return storedEvents.slice(start, end)
+        const start = (page - 1) * size
+        return stored.slice(start, start + size)
       }
     },
     enabled: !isLoading,
   })
 
-  // Replace the add-ons fetching with infinite scroll
-  const {
-    items: addons,
-    loading: loadingAddons,
-    loaderRef: addonsLoaderRef,
-    hasMore: hasMoreAddons,
-  } = useInfiniteScroll<AddOn>({
+  const { items: addons } = useInfiniteScroll<AddOn>({
     pageSize: 6,
     fetchFunction: async (page, size) => {
-
       try {
-        return await fetchApi<AddOn[]>(`addons?page=${page}&size=${size}`);
+        return await fetchApi<AddOn[]>(`addons?page=${page}&size=${size}`)
       } catch (error) {
         console.error("Error fetching add-ons:", error)
-        // Fallback to localStorage if API fails
-        let storedAddons = JSON.parse(localStorage.getItem("pastryAddons") || "[]")
-
-        if (storedAddons.length === 0) {
-          storedAddons = defaultAddons
+        let stored = JSON.parse(localStorage.getItem("pastryAddons") || "[]")
+        if (stored.length === 0) {
+          stored = defaultAddons
           localStorage.setItem("pastryAddons", JSON.stringify(defaultAddons))
         }
-
-        // Return a limited subset to simulate pagination
-        const start = (page - 1) * size // Adjusted for 1-based pagination
-        const end = start + size
-        return storedAddons.slice(start, end)
+        const start = (page - 1) * size
+        return stored.slice(start, start + size)
       }
     },
     enabled: !isLoading,
   })
 
-  // State for event filtering
-  const [selectedEventId, setSelectedEventId] = useState<number | null>(null)
-  const [showEventsSheet, setShowEventsSheet] = useState(false)
-
-  // State for cart items
-  const [cart, setCart] = useState<CartItem[]>([])
-
-  // State for whether the user has previous orders
-  const [hasOrders, setHasOrders] = useState(false);
-
-  // State for product quantities and notes
-  const [quantities, setQuantities] = useState<Record<number, number>>({})
-  const [notes, setNotes] = useState<Record<number, string>>({})
-
-  // State for selected add-ons
-  const [selectedAddons, setSelectedAddons] = useState<Record<number, SelectedAddOn[]>>({})
-
+  // Initial load: cart + banner + contact + orders flag
   useEffect(() => {
-    // Check for existing orders
-    const savedOrders = localStorage.getItem('pastryOrders');
+    const savedOrders = localStorage.getItem("pastryOrders")
     if (savedOrders) {
-      const parsedOrders = JSON.parse(savedOrders);
-      setHasOrders(Array.isArray(parsedOrders) && parsedOrders.length > 0);
+      try {
+        const parsed = JSON.parse(savedOrders)
+        setHasOrders(Array.isArray(parsed) && parsed.length > 0)
+      } catch {}
     }
-  }, [])
-  // Load products and cart from localStorage on component mount
-  // Update the useEffect to handle cart and its dependencies
-  useEffect(() => {
-    // Load cart from localStorage
-    const loadCart = async () => {
-      if (typeof window !== "undefined") {
-        const savedCart = localStorage.getItem("pastryCart")
-        if (savedCart) {
-          try {
-            const parsedCart = JSON.parse(savedCart)
-            
-            // Convert from old format to new format if needed
-            const convertedCart = parsedCart.map((item: any) => {
-              // If already using the new format
-              if (item.productId) {
-                return item
-              }
-              
-              // Convert from old format (with full objects) to new format (with IDs)
-              return {
+
+    const savedCart = localStorage.getItem("pastryCart")
+    if (savedCart) {
+      try {
+        const parsed = JSON.parse(savedCart)
+        const converted = parsed.map((item: any) =>
+          item.productId
+            ? item
+            : {
                 productId: item.product.id,
                 quantity: item.quantity,
                 notes: item.notes,
-                addons: item.addons.map((addon: any) => ({
-                  addonId: addon.addon.id,
-                  quantity: addon.quantity,
-                  notes: addon.notes
-                }))
-              }
-            })
-            
-            // Extract unique product IDs and addon IDs from cart
-            const productIds = new Set(convertedCart.map((item: CartItem) => item.productId))
-            const addonIds = new Set<number>()
-            convertedCart.forEach((item: CartItem) => {
-              item.addons.forEach(addon => {
-                addonIds.add(addon.addonId)
-              })
-            })
-            
-            // Make sure we have the required products and addons in state
-            const storedProducts = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
-            const storedAddons = JSON.parse(localStorage.getItem("pastryAddons") || "[]")
-            
-            // Update localStorage with any products and addons that we have in memory
-            let productsNeedUpdate = false
-            let addonsNeedUpdate = false
-            
-            // Add any missing products
-            productIds.forEach(productId => {
-              if (!storedProducts.some((p: Product) => p.id === productId)) {
-                const productFromDefault = defaultProducts.find(p => p.id === productId)
-                if (productFromDefault) {
-                  storedProducts.push(productFromDefault)
-                  productsNeedUpdate = true
-                }
-              }
-            })
-            
-            // Add any missing addons
-            addonIds.forEach(addonId => {
-              if (!storedAddons.some((a: AddOn) => a.id === addonId)) {
-                const addonFromDefault = defaultAddons.find(a => a.id === addonId)
-                if (addonFromDefault) {
-                  storedAddons.push(addonFromDefault)
-                  addonsNeedUpdate = true
-                }
-              }
-            })
-            
-            // Save updated products and addons to localStorage if needed
-            if (productsNeedUpdate) {
-              localStorage.setItem("pastryProducts", JSON.stringify(storedProducts))
-            }
-            
-            if (addonsNeedUpdate) {
-              localStorage.setItem("pastryAddons", JSON.stringify(storedAddons))
-            }
-            
-            setCart(convertedCart)
-          } catch (error) {
-            console.error("Error parsing cart from localStorage:", error)
-          }
-        }
+                addons: item.addons.map((a: any) => ({
+                  addonId: a.addon.id,
+                  quantity: a.quantity,
+                  notes: a.notes,
+                })),
+              },
+        )
+        setCart(converted)
+      } catch (e) {
+        console.error("Error parsing cart:", e)
       }
     }
 
-    loadCart()
-
-    // Load banner settings from API
-    const fetchBanner = async () => {
-      try {
-        const data = await fetchApi<Banner>("banner");
-        setBanner(data);
-      } catch (error) {
-        console.error("Error fetching banner:", error)
-        // Fallback to localStorage if API fails
-        const savedBanner = localStorage.getItem("pastryBanner")
-        if (savedBanner) {
-          setBanner(JSON.parse(savedBanner))
-        } else {
+    fetchApi<Banner>("banner")
+      .then(setBanner)
+      .catch(() => {
+        const saved = localStorage.getItem("pastryBanner")
+        if (saved) setBanner(JSON.parse(saved))
+        else {
           localStorage.setItem("pastryBanner", JSON.stringify(defaultBanner))
+          setBanner(defaultBanner)
         }
-      }
-    }
+      })
 
-    // Load contact info from API
-    const fetchContactInfo = async () => {
-      try {
-        const data = await fetchApi<ContactInfo>("contact");
-        setContactInfo(data);
-      } catch (error) {
-        console.error("Error fetching contact info:", error)
-        // Fallback to localStorage if API fails
-        const savedContactInfo = localStorage.getItem("pastryContactInfo")
-        if (savedContactInfo) {
-          setContactInfo(JSON.parse(savedContactInfo))
-        } else {
-          localStorage.setItem("pastryContactInfo", JSON.stringify(defaultContactInfo))
-        }
-      }
-    }
-
-    fetchBanner()
-    fetchContactInfo()
+    fetchApi<ContactInfo>("contact")
+      .then(setContactInfo)
+      .catch(() => {
+        const saved = localStorage.getItem("pastryContactInfo")
+        if (saved) setContactInfo(JSON.parse(saved))
+        else localStorage.setItem("pastryContactInfo", JSON.stringify(defaultContactInfo))
+      })
 
     setIsLoading(false)
   }, [])
 
-  // Function to update quantity
-  const updateQuantity = (productId: number, delta: number) => {
-    setQuantities((prev) => {
-      const newQuantity = Math.max(0, (prev[productId] || 0) + delta)
-      return { ...prev, [productId]: newQuantity }
-    })
-  }
+  const addToCart = (
+    product: Product,
+    data: { quantity: number; notes: string; addons: SelectedAddOn[] },
+  ) => {
+    if (data.quantity <= 0) return
 
-  // Function to update notes
-  const updateNotes = (productId: number, text: string) => {
-    setNotes((prev) => ({ ...prev, [productId]: text }))
-  }
-
-  // Function to add an add-on to a product
-  const addAddon = (productId: number, addon: AddOn) => {
-    setSelectedAddons((prev) => {
-      const currentAddons = [...(prev[productId] || [])]
-      // Check if this add-on is already selected
-      const existingIndex = currentAddons.findIndex((item) => item.addon.id === addon.id)
-
-      if (existingIndex >= 0) {
-        // If already exists, don't add it again
-        return prev
-      }
-
-      // Add new add-on with default quantity 1 and empty notes
-      currentAddons.push({
-        addon,
-        quantity: 1,
-        notes: "",
-      })
-
-      return { ...prev, [productId]: currentAddons }
-    })
-  }
-
-  // Function to remove an add-on from a product
-  const removeAddon = (productId: number, addonId: number) => {
-    setSelectedAddons((prev) => {
-      const currentAddons = [...(prev[productId] || [])]
-      const updatedAddons = currentAddons.filter((item) => item.addon.id !== addonId)
-      return { ...prev, [productId]: updatedAddons }
-    })
-  }
-
-  // Function to update add-on quantity
-  const updateAddonQuantity = (productId: number, addonId: number, delta: number) => {
-    setSelectedAddons((prev) => {
-      const currentAddons = [...(prev[productId] || [])]
-      const addonIndex = currentAddons.findIndex((item) => item.addon.id === addonId)
-
-      if (addonIndex >= 0) {
-        const newQuantity = Math.max(1, currentAddons[addonIndex].quantity + delta)
-        currentAddons[addonIndex] = {
-          ...currentAddons[addonIndex],
-          quantity: newQuantity,
-        }
-      }
-
-      return { ...prev, [productId]: currentAddons }
-    })
-  }
-
-  // Function to update add-on notes
-  const updateAddonNotes = (productId: number, addonId: number, text: string) => {
-    setSelectedAddons((prev) => {
-      const currentAddons = [...(prev[productId] || [])]
-      const addonIndex = currentAddons.findIndex((item) => item.addon.id === addonId)
-
-      if (addonIndex >= 0) {
-        currentAddons[addonIndex] = {
-          ...currentAddons[addonIndex],
-          notes: text,
-        }
-      }
-
-      return { ...prev, [productId]: currentAddons }
-    })
-  }
-
-  // Function to add item to cart
-  const addToCart = (product: Product) => {
-    const quantity = quantities[product.id]
-    const note = notes[product.id]
-    const productAddons = selectedAddons[product.id] || []
-
-    if (quantity <= 0) return
-
-    // Check if product already exists in cart
-    const existingItemIndex = cart.findIndex((item) => item.productId === product.id)
-
-    let updatedCart
-    if (existingItemIndex >= 0) {
-      // Update existing item
-      updatedCart = [...cart]
-      updatedCart[existingItemIndex] = {
-        ...updatedCart[existingItemIndex],
-        quantity,
-        notes: note,
-        addons: productAddons.map(addon => ({
-          addonId: addon.addon.id,
-          quantity: addon.quantity,
-          notes: addon.notes
-        })),
-      }
-    } else {
-      // Add new item
-      updatedCart = [
-        ...cart,
-        {
-          productId: product.id,
-          quantity,
-          notes: note,
-          addons: productAddons.map(addon => ({
-            addonId: addon.addon.id,
-            quantity: addon.quantity,
-            notes: addon.notes
-          })),
-        },
-      ]
+    const newItem: CartItem = {
+      productId: product.id,
+      quantity: data.quantity,
+      notes: data.notes,
+      addons: data.addons.map((sa) => ({
+        addonId: sa.addon.id,
+        quantity: sa.quantity,
+        notes: sa.notes,
+      })),
     }
 
-    // Store the cart in state
-    setCart(updatedCart)
-    
-    // Ensure the product is saved in localStorage
+    const existingIndex = cart.findIndex((item) => item.productId === product.id)
+    const updated =
+      existingIndex >= 0
+        ? cart.map((item, i) => (i === existingIndex ? newItem : item))
+        : [...cart, newItem]
+
+    setCart(updated)
+    localStorage.setItem("pastryCart", JSON.stringify(updated))
+
+    // Persist any new product/addons so they survive a refresh in the cart view
     const savedProducts = JSON.parse(localStorage.getItem("pastryProducts") || "[]")
     if (!savedProducts.some((p: Product) => p.id === product.id)) {
       savedProducts.push(product)
       localStorage.setItem("pastryProducts", JSON.stringify(savedProducts))
     }
-    
-    // Ensure all the addons are saved in localStorage
-    if (productAddons.length > 0) {
+    if (data.addons.length > 0) {
       const savedAddons = JSON.parse(localStorage.getItem("pastryAddons") || "[]")
-      let addonsNeedUpdate = false
-      
-      productAddons.forEach(addonItem => {
-        if (!savedAddons.some((a: AddOn) => a.id === addonItem.addon.id)) {
-          savedAddons.push(addonItem.addon)
-          addonsNeedUpdate = true
+      let dirty = false
+      data.addons.forEach((sa) => {
+        if (!savedAddons.some((a: AddOn) => a.id === sa.addon.id)) {
+          savedAddons.push(sa.addon)
+          dirty = true
         }
       })
-      
-      if (addonsNeedUpdate) {
-        localStorage.setItem("pastryAddons", JSON.stringify(savedAddons))
-      }
+      if (dirty) localStorage.setItem("pastryAddons", JSON.stringify(savedAddons))
     }
-    
-    // Save the updated cart to localStorage
-    localStorage.setItem("pastryCart", JSON.stringify(updatedCart))
-
-    // Reset quantity, notes, and selected add-ons for this product
-    setQuantities((prev) => ({ ...prev, [product.id]: 0 }))
-    setNotes((prev) => ({ ...prev, [product.id]: "" }))
-    setSelectedAddons((prev) => ({ ...prev, [product.id]: [] }))
   }
 
-  // Calculate item price including add-ons
-  const calculateItemPrice = (productId: number, cartAddons: CartAddOn[]) => {
-    const product = products.find(p => p.id === productId)
-    if (!product) return 0
-    
-    const basePrice = product.price
-    const addonsPrice = cartAddons.reduce((sum, cartAddon) => {
-      const addon = addons.find(a => a.id === cartAddon.addonId)
-      return sum + (addon?.price || 0) * cartAddon.quantity
-    }, 0)
-
-    return basePrice + addonsPrice
-  }
-
-  // Calculate total price
-  const totalPrice = cart.reduce((sum, item) => {
-    const itemPrice = calculateItemPrice(item.productId, item.addons)
-    return sum + itemPrice * item.quantity
-  }, 0)
-
-  // Function to remove item from cart
   const removeFromCart = (index: number) => {
-    const updatedCart = cart.filter((_, i) => i !== index)
-    setCart(updatedCart)
-    localStorage.setItem("pastryCart", JSON.stringify(updatedCart))
+    const updated = cart.filter((_, i) => i !== index)
+    setCart(updated)
+    localStorage.setItem("pastryCart", JSON.stringify(updated))
   }
 
-  // Format WhatsApp number for link
-  const formatWhatsAppLink = (number: string) => {
-    // Remove any non-digit characters
-    const digits = number.replace(/\D/g, "")
-    return `https://wa.me/${digits}`
-  }
+  const formatWhatsAppLink = (number: string) =>
+    `https://wa.me/${number.replace(/\D/g, "")}`
 
-  // Get applicable add-ons for a product
-  const getApplicableAddons = (product: Product) => {
+  const getApplicableAddons = (product: Product): AddOn[] => {
     if (!product.applicableAddons) return []
-
-    return addons.filter((addon) => product.applicableAddons?.includes(addon.id) && addon.available !== false)
+    return addons.filter(
+      (a) => product.applicableAddons?.includes(a.id) && a.available !== false,
+    )
   }
 
-  // Handle event selection
   const handleSelectEvent = (eventId: number) => {
     setSelectedEventId(eventId === selectedEventId ? null : eventId)
     setShowEventsSheet(false)
   }
 
-  // Get filtered products based on event selection
-  const getFilteredProducts = () => {
-    if (!selectedEventId) {
-      // If no event is selected, show only non-event products
-      return products.filter((product) => !product.eventOnly)
-    } else {
-      // If an event is selected, show ONLY products for that event
-      return products.filter((product) => product.eventOnly && product.eventId === selectedEventId)
-    }
-  }
+  const filteredProducts = selectedEventId
+    ? products.filter((p) => p.eventOnly && p.eventId === selectedEventId)
+    : products.filter((p) => !p.eventOnly)
 
-  // Get the selected event
-  const selectedEvent = selectedEventId ? events.find((event) => event.id === selectedEventId) : null
+  const selectedEvent = selectedEventId
+    ? events.find((e) => e.id === selectedEventId)
+    : null
+  const featuredEvents = events.filter((e) => e.featured)
 
-  // Get featured events
-  const featuredEvents = events.filter((event) => event.featured)
+  const cartTotalQty = cart.reduce((sum, item) => sum + item.quantity, 0)
 
-  // Handle banner event link
-  const handleBannerEventLink = () => {
-    if (banner.linkToEventId) {
-      setSelectedEventId(banner.linkToEventId)
-    }
-  }
+  const orderingCartItem = orderingProduct
+    ? cart.find((item) => item.productId === orderingProduct.id)
+    : undefined
+  const orderingInitialAddons: SelectedAddOn[] | undefined = orderingCartItem
+    ? (orderingCartItem.addons
+        .map((ca) => {
+          const a = addons.find((x) => x.id === ca.addonId)
+          return a ? { addon: a, quantity: ca.quantity, notes: ca.notes } : null
+        })
+        .filter(Boolean) as SelectedAddOn[])
+    : undefined
 
   if (isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-[50vh]">
-        <p>Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-brand-blush">
+        <p className="font-script text-3xl text-brand-pink">Loading sweetness…</p>
       </div>
     )
   }
 
-  return (
-    <main className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-3xl font-bold text-primary">Jus Treats</h1>
-        <div className="flex gap-2">
-          {hasOrders && (
-            <Button variant="outline" onClick={() => router.push('/orders')} className="flex items-center">
-              <File className="h-5 w-5 mr-0" />
-              <span className="hidden sm:inline">Orders</span>
-            </Button>
-          )} <Button variant="outline" onClick={() => setShowEventsSheet(true)} className="flex items-center">
-            <Calendar className="h-5 w-5 mr-0" />
-            <span className="hidden sm:inline">Events</span>  
-            {selectedEventId && (
-              <Badge className="ml-2" variant="secondary">
-                1
-              </Badge>
-            )}
-          </Button>
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" className="relative">
-                <ShoppingBag className="h-5 w-5 mr-0" />
-                <span className="hidden sm:inline">Cart</span>
-                {cart.length > 0 && (
-                  <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground rounded-full w-5 h-5 text-xs flex items-center justify-center">
-                    {cart.reduce((sum, item) => sum + item.quantity, 0)}
-                  </span>
-                )}
-              </Button>
-            </SheetTrigger>
-            <SheetContent className="w-full sm:max-w-md">
-              <SheetHeader>
-                <SheetTitle>Your Order</SheetTitle>
-                <SheetDescription>Review your items before checkout</SheetDescription>
-              </SheetHeader>
-              <div className="mt-6 space-y-4">
-                {cart.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-6">Your cart is empty</p>
-                ) : (
-                  <>
-                    {cart.map((item, index) => {
-                      const product = products.find(p => p.id === item.productId);
-                      if (!product) return null;
-                      
-                      return (
-                        <div key={index} className="flex flex-col border-b pb-4">
-                          <div className="flex justify-between">
-                            <div>
-                              <h3 className="font-medium">{product.name}</h3>
-                              <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                              {item.notes && <p className="text-sm italic mt-1">Note: {item.notes}</p>}
-                              {product.eventOnly && (
-                                <Badge variant="outline" className="mt-1">
-                                  Event Pickup Only
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <p>${(calculateItemPrice(item.productId, item.addons) * item.quantity).toFixed(2)}</p>
-                              <button onClick={() => removeFromCart(index)} className="text-sm text-red-500 mt-1">
-                                Remove
-                              </button>
-                            </div>
-                          </div>
+  const RoundIconButton = ({
+    onClick,
+    children,
+    label,
+    badge,
+    variant = "white",
+  }: {
+    onClick: () => void
+    children: React.ReactNode
+    label: string
+    badge?: number
+    variant?: "white" | "pink"
+  }) => (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className={cn(
+        "relative inline-flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-full border-2 shadow-md transition-colors",
+        variant === "white"
+          ? "bg-white text-brand-pink border-brand-pink/40 hover:bg-brand-pink hover:text-white"
+          : "bg-brand-pink text-white border-white hover:bg-brand-purple hover:border-white",
+      )}
+    >
+      {children}
+      {typeof badge === "number" && badge > 0 && (
+        <span className="absolute -top-1 -right-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-purple px-1 text-[10px] font-display font-bold text-white border-2 border-white">
+          {badge}
+        </span>
+      )}
+    </button>
+  )
 
-                          {item.addons.length > 0 && (
-                            <div className="mt-2 pl-4 border-l-2 border-muted">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">Add-ons:</p>
-                              {item.addons.map((cartAddon, addonIndex) => {
-                                const addon = addons.find(a => a.id === cartAddon.addonId);
-                                if (!addon) return null;
-                                
-                                return (
-                                  <div key={addonIndex} className="flex justify-between text-sm">
-                                    <div>
-                                      <p className="text-sm">
-                                        {addon.name} (x{cartAddon.quantity})
-                                      </p>
-                                      {cartAddon.notes && <p className="text-xs italic">Note: {cartAddon.notes}</p>}
-                                    </div>
-                                    <p>${(addon.price * cartAddon.quantity).toFixed(2)}</p>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    <div className="flex justify-between font-bold pt-2">
-                      <span>Total:</span>
-                      <span>${totalPrice.toFixed(2)}</span>
-                    </div>
-                    <Button
-                      className="w-full mt-6"
-                      onClick={() => router.push("/checkout")}
-                      disabled={cart.length === 0}
-                    >
-                      Proceed to Checkout
-                    </Button>
-                  </>
+  return (
+    <main className="relative min-h-screen bg-brand-blush brand-dot-bg">
+      {/* Floating top action bar */}
+      <div className="fixed top-3 right-3 sm:top-4 sm:right-4 z-30 flex gap-2">
+        {hasOrders && (
+          <RoundIconButton onClick={() => router.push("/orders")} label="Orders">
+            <File className="h-5 w-5" />
+          </RoundIconButton>
+        )}
+        <RoundIconButton
+          onClick={() => setShowEventsSheet(true)}
+          label="Events"
+          badge={selectedEventId ? 1 : undefined}
+        >
+          <Calendar className="h-5 w-5" />
+        </RoundIconButton>
+        <RoundIconButton
+          onClick={() => setShowCart(true)}
+          label="Cart"
+          badge={cartTotalQty}
+          variant="pink"
+        >
+          <ShoppingBag className="h-5 w-5" />
+        </RoundIconButton>
+      </div>
+
+      <div className="container mx-auto max-w-5xl px-3 py-6 sm:px-6 sm:py-8">
+        {/* Outer dashed frame */}
+        <div className="relative overflow-hidden rounded-[32px] border-[4px] border-dashed border-brand-pink/50 bg-white/40 p-4 sm:p-8 shadow-sm">
+          <SparkleDecor className="absolute left-4 top-1/3 h-4 w-4 opacity-60" rotate={20} />
+          <SparkleDecor className="absolute right-6 top-2/3 h-3 w-3 opacity-60" rotate={-15} />
+          <HeartDecor variant="mint" className="absolute -right-4 bottom-24 h-12 w-12 opacity-60" rotate={20} />
+          <HeartDecor variant="pink" className="absolute -left-4 bottom-40 h-10 w-10 opacity-60" rotate={-15} />
+
+          <FlyerHero />
+
+          {/* Selected event header */}
+          {selectedEvent && (
+            <DashedFrame variant="purple" className="mt-4 p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-display font-bold uppercase tracking-[0.18em] text-[10px] sm:text-xs text-brand-purple">
+                    Now showing items from
+                  </p>
+                  <h3 className="font-display font-extrabold uppercase tracking-wide text-lg sm:text-xl text-brand-purple mt-1 truncate">
+                    {selectedEvent.name}
+                  </h3>
+                  <p className="font-script text-base sm:text-lg text-brand-pink">
+                    {formatLongDate(selectedEvent.date)}
+                  </p>
+                  <p className="mt-1 inline-flex items-center gap-1 text-[10px] sm:text-xs uppercase tracking-wider text-brand-ink/70">
+                    <MapPin className="h-3 w-3" /> {selectedEvent.location}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedEventId(null)}
+                  aria-label="Show all products"
+                  className="shrink-0 rounded-full bg-brand-pink-soft p-2 text-brand-pink transition-colors hover:bg-brand-pink hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </DashedFrame>
+          )}
+
+          {/* Pickup info card (only when no event is selected) */}
+          {!selectedEvent && banner?.enabled && banner?.title && (
+            <div className="mt-6">
+              <FlyerPickupCard
+                heading="Pickup is from"
+                location={banner.title}
+                date={banner.description}
+                onClick={
+                  banner.linkToEventId
+                    ? () => setSelectedEventId(banner.linkToEventId!)
+                    : undefined
+                }
+              />
+            </div>
+          )}
+
+          {/* Featured events */}
+          {!selectedEventId && featuredEvents.length > 0 && (
+            <section className="mt-8">
+              <div className="flex justify-center">
+                <Ribbon variant="purple" className="text-xs">
+                  Upcoming Events
+                </Ribbon>
+              </div>
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {featuredEvents.map((event) => (
+                  <EventBanner
+                    key={event.id}
+                    event={event}
+                    onSelectEvent={handleSelectEvent}
+                    isSelected={false}
+                  />
+                ))}
+                {hasMoreEvents && (
+                  <div ref={eventsLoaderRef} className="col-span-full py-4 flex justify-center">
+                    {loadingEvents && (
+                      <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-brand-pink" />
+                    )}
+                  </div>
                 )}
               </div>
-            </SheetContent>
-          </Sheet>
-        </div>
-      </div>
+            </section>
+          )}
 
-      {/* Social Media Links */}
-      <div className="flex flex-wrap items-center justify-center gap-3 mb-8 px-2 text-center">
-        <a
-          href={`https://instagram.com/${contactInfo.instagram}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
-        >
-          <Instagram className="h-4 w-4 flex-shrink-0" />
-          <span className="truncate">@{contactInfo.instagram}</span>
-        </a>
-        <span className="hidden sm:inline text-muted-foreground">•</span>
-        <a
-          href={formatWhatsAppLink(contactInfo.whatsapp)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
-        >
-          <WhatsApp className="h-4 w-4 flex-shrink-0" />
-          <span className="truncate">{contactInfo.whatsapp}</span>
-        </a>
-        <span className="hidden sm:inline text-muted-foreground">•</span>
-        <a
-          href={`mailto:${contactInfo.email}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1 text-sm text-muted-foreground hover:text-primary transition-colors"
-        >
-          <Mail className="h-4 w-4 flex-shrink-0" />
-          <span className="truncate">{contactInfo.email}</span>
-        </a>
-      </div>
+          {/* Products section */}
+          <section className="mt-10">
+            <div className="flex justify-center">
+              <Ribbon variant={selectedEventId ? "purple" : "pink"}>
+                {selectedEventId ? "Event-Only Treats" : "Our Treats"}
+              </Ribbon>
+            </div>
 
-      {/* Banner Section */}
-      {banner.enabled && (
-        <div className="mb-8 rounded-lg overflow-hidden shadow-md">
-          <div className="relative">
-            <img
-              src={banner.imageUrl || "/placeholder.svg"}
-              alt={banner.title}
-              className="w-full h-48 md:h-64 object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent flex flex-col justify-end p-6">
-              <h2 className="text-white text-2xl md:text-3xl font-bold mb-2">{banner.title}</h2>
-              <p className="text-white/90 max-w-md">{banner.description}</p>
+            {filteredProducts.length === 0 ? (
+              <div className="mt-6 rounded-2xl border-[2px] border-dashed border-brand-pink/40 bg-white p-10 text-center">
+                <Heart className="mx-auto h-8 w-8 fill-brand-pink-soft text-brand-pink-soft" />
+                <p className="mt-3 font-display font-bold uppercase tracking-wider text-sm text-brand-ink/60">
+                  {selectedEventId
+                    ? "No items available for this event yet"
+                    : "No treats available right now"}
+                </p>
+                {selectedEventId && (
+                  <Button
+                    variant="outline"
+                    className="mt-4 rounded-full border-brand-pink/50 text-brand-pink hover:bg-brand-pink-soft"
+                    onClick={() => setSelectedEventId(null)}
+                  >
+                    Show all treats
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+                {filteredProducts.map((product, idx) => {
+                  const cartItem = cart.find((item) => item.productId === product.id)
+                  return (
+                    <FlyerProductCard
+                      key={product.id}
+                      product={product}
+                      index={idx}
+                      cartQuantity={cartItem?.quantity ?? 0}
+                      onSelect={setOrderingProduct}
+                    />
+                  )
+                })}
+                {!selectedEventId && hasMoreProducts && (
+                  <div ref={productsLoaderRef} className="col-span-full py-4 flex justify-center">
+                    {loadingProducts && (
+                      <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-brand-pink" />
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* Footer */}
+          <div className="mt-12 text-center">
+            <p className="inline-flex items-center justify-center gap-2 font-display font-bold uppercase tracking-[0.18em] text-xs sm:text-sm text-brand-pink">
+              <Heart className="h-3 w-3 fill-brand-pink text-brand-pink" />
+              <span>Thank you for supporting homemade</span>
+              <Heart className="h-3 w-3 fill-brand-pink text-brand-pink" />
+            </p>
+
+            <div className="mt-5 flex flex-wrap justify-center gap-3">
+              <a
+                href={`https://instagram.com/${contactInfo.instagram}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Instagram @${contactInfo.instagram}`}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-pink border-2 border-brand-pink/40 shadow-sm transition-colors hover:bg-brand-pink hover:text-white"
+              >
+                <Instagram className="h-4 w-4" />
+              </a>
+              <a
+                href={formatWhatsAppLink(contactInfo.whatsapp)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`WhatsApp ${contactInfo.whatsapp}`}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-purple border-2 border-brand-purple/40 shadow-sm transition-colors hover:bg-brand-purple hover:text-white"
+              >
+                <WhatsApp className="h-4 w-4" />
+              </a>
+              <a
+                href={`mailto:${contactInfo.email}`}
+                aria-label={`Email ${contactInfo.email}`}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-pink border-2 border-brand-pink/40 shadow-sm transition-colors hover:bg-brand-pink hover:text-white"
+              >
+                <Mail className="h-4 w-4" />
+              </a>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Selected Event Banner */}
-      {selectedEvent && (
-        <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">{selectedEvent.name}</h2>
-            <Button variant="ghost" size="sm" onClick={() => setSelectedEventId(null)}>
-              <X className="h-4 w-4 mr-2" />
-              Show Regular Products
-            </Button>
-          </div>
-          <Card>
-            <CardContent className="p-0">
-              <div className="relative">
-                <img
-                  src={selectedEvent.image || "/placeholder.svg"}
-                  alt={selectedEvent.name}
-                  className="w-full h-40 object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-6">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between text-white">
-                    <div className="mb-2 md:mb-0">
-                      <div className="flex items-center">
-                        <CalendarDays className="h-4 w-4 mr-2" />
-                        <span>
-                          {selectedEvent.endDate
-                            ? `${formatDate(selectedEvent.date)} - ${formatDate(selectedEvent.endDate)}`
-                            : formatDate(selectedEvent.date)}
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex items-center">
-                        <MapPin className="h-4  w-4 mr-2" />
-                        <span>{selectedEvent.location}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4">
-                <p className="text-muted-foreground">{selectedEvent.description}</p>
-                <div className="mt-4 bg-muted/30 p-3 rounded-md">
-                  <p className="text-sm font-medium">
-                    Event-only items are available for pickup at this event location only.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      {/* Cart Sheet */}
+      <CartSheet
+        open={showCart}
+        onOpenChange={setShowCart}
+        cart={cart}
+        products={products}
+        addons={addons}
+        onRemove={removeFromCart}
+        onCheckout={() => {
+          setShowCart(false)
+          router.push("/checkout")
+        }}
+      />
 
       {/* Events Sheet */}
       <Sheet open={showEventsSheet} onOpenChange={setShowEventsSheet}>
-        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Upcoming Events</SheetTitle>
-            <SheetDescription>Browse our events and special offerings</SheetDescription>
+        <SheetContent className="w-full sm:max-w-md bg-brand-blush border-l-[3px] border-brand-pink/40 overflow-y-auto">
+          <SheetHeader className="text-center">
+            <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-purple text-white shadow-md">
+              <Calendar className="h-5 w-5" />
+            </div>
+            <SheetTitle className="font-display font-extrabold uppercase tracking-wide text-2xl text-brand-purple">
+              Upcoming Events
+            </SheetTitle>
+            <SheetDescription className="font-script text-lg text-brand-pink">
+              Browse our pop-ups and specials
+            </SheetDescription>
           </SheetHeader>
-          <div className="mt-6 space-y-6">
+
+          <div className="mt-6 space-y-4">
             {events.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6">No upcoming events</p>
+              <div className="rounded-2xl border-[2px] border-dashed border-brand-purple/40 bg-white p-6 text-center">
+                <p className="font-display font-bold uppercase tracking-wider text-sm text-brand-ink/60">
+                  No upcoming events
+                </p>
+              </div>
             ) : (
               <>
                 {selectedEventId && (
-                  <Button variant="outline" className="w-full" onClick={() => setSelectedEventId(null)}>
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-full border-brand-pink/50 text-brand-pink hover:bg-brand-pink-soft"
+                    onClick={() => {
+                      setSelectedEventId(null)
+                      setShowEventsSheet(false)
+                    }}
+                  >
                     <Filter className="h-4 w-4 mr-2" />
-                    Show Regular Products
+                    Show all treats
                   </Button>
                 )}
-                <div className="space-y-4">
-                  {events.map((event) => (
-                    <EventBanner
-                      key={event.id}
-                      event={event}
-                      onSelectEvent={handleSelectEvent}
-                      isSelected={selectedEventId === event.id}
-                    />
-                  ))}
-                </div>
+                {events.map((event) => (
+                  <EventBanner
+                    key={event.id}
+                    event={event}
+                    onSelectEvent={handleSelectEvent}
+                    isSelected={selectedEventId === event.id}
+                  />
+                ))}
               </>
             )}
           </div>
         </SheetContent>
       </Sheet>
 
-      {/* Featured Events (if no event is selected) */}
-      {!selectedEventId && featuredEvents.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-2xl font-bold mb-4">Upcoming Events</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {featuredEvents.map((event) => (
-              <EventBanner key={event.id} event={event} onSelectEvent={handleSelectEvent} isSelected={false} />
-            ))}
-
-            {/* Loader for infinite scrolling */}
-            {hasMoreEvents && (
-              <div ref={eventsLoaderRef} className="col-span-full py-4 flex justify-center">
-                {loadingEvents && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Products Section */}
-      <div className="mb-4">
-        <h2 className="text-2xl font-bold mb-4">{selectedEventId ? "Event-Only Products" : "Our Products"}</h2>
-
-        {getFilteredProducts().length === 0 ? (
-          <div className="text-center py-12">
-            <h2 className="text-2xl font-bold mb-2">No Products Available</h2>
-            <p className="text-muted-foreground">
-              {selectedEventId
-                ? "There are currently no products available for this event."
-                : "There are currently no products available for order."}
-            </p>
-            {selectedEventId && (
-              <Button variant="outline" className="mt-4" onClick={() => setSelectedEventId(null)}>
-                Show Regular Products
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {getFilteredProducts().map((product) => {
-              const applicableAddons = getApplicableAddons(product)
-              const productAddons = selectedAddons[product.id] || []
-              const itemPrice = calculateItemPrice(
-                product.id, 
-                productAddons.map(addon => ({
-                  addonId: addon.addon.id,
-                  quantity: addon.quantity,
-                  notes: addon.notes
-                }))
-              )
-
-              return (
-                <Card key={product.id} className={`overflow-hidden ${product.eventOnly ? "border-primary/30" : ""}`}>
-                  <div className="aspect-video w-full overflow-hidden relative">
-                    <img
-                      src={product.image || "/placeholder.svg"}
-                      alt={product.name}
-                      className="h-full w-full object-cover"
-                    />
-                    {product.eventOnly && (
-                      <div className="absolute top-2 right-2">
-                        <Badge className="bg-primary">Event Only</Badge>
-                      </div>
-                    )}
-                  </div>
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h2 className="text-xl font-semibold">{product.name}</h2>
-                      <div className="text-right">
-                        <p className="font-medium">${product.price.toFixed(2)}</p>
-                        {productAddons.length > 0 && (
-                          <p className="text-xs text-muted-foreground">With add-ons: ${itemPrice.toFixed(2)}</p>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-muted-foreground text-sm mb-4">{product.description}</p>
-
-                    {product.eventOnly && (
-                      <div className="mb-4 bg-muted/30 p-2 rounded-md">
-                        <p className="text-xs text-muted-foreground">
-                          This item is available for pickup at the event location only.
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <div>
-                        <Label htmlFor={`quantity-${product.id}`}>Quantity</Label>
-                        <div className="flex items-center mt-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => updateQuantity(product.id, -1)}
-                            disabled={quantities[product.id] <= 0}
-                          >
-                            <MinusCircle className="h-4 w-4" />
-                          </Button>
-                          <Input
-                            id={`quantity-${product.id}`}
-                            type="number"
-                            min="0"
-                            className="w-16 mx-2 text-center"
-                            value={quantities[product.id] || 0}
-                            onChange={(e) => {
-                              const val = Number.parseInt(e.target.value) || 0
-                              setQuantities({ ...quantities, [product.id]: Math.max(0, val) })
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            onClick={() => updateQuantity(product.id, 1)}
-                          >
-                            <PlusCircle className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <Label htmlFor={`notes-${product.id}`}>Special Instructions</Label>
-                        <Textarea
-                          id={`notes-${product.id}`}
-                          placeholder="Any special requests?"
-                          className="mt-1 resize-none"
-                          value={notes[product.id] || ""}
-                          onChange={(e) => updateNotes(product.id, e.target.value)}
-                        />
-                      </div>
-
-                      {/* Add-ons Section */}
-                      {applicableAddons.length > 0 && (
-                        <div className="mt-4">
-                          <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="add-ons">
-                              <AccordionTrigger className="text-sm font-medium">
-                                Customize with Add-ons
-                              </AccordionTrigger>
-                              <AccordionContent>
-                                <div className="space-y-4 pt-2">
-                                  {/* Selected Add-ons */}
-                                  {productAddons.length > 0 && (
-                                    <div className="space-y-3">
-                                      <h4 className="text-sm font-medium">Selected Add-ons:</h4>
-                                      {productAddons.map((selectedAddon) => (
-                                        <div
-                                          key={selectedAddon.addon.id}
-                                          className="bg-muted/50 rounded-md p-3 relative"
-                                        >
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="absolute right-1 top-1 h-6 w-6"
-                                            onClick={() => removeAddon(product.id, selectedAddon.addon.id)}
-                                          >
-                                            <X className="h-4 w-4" />
-                                          </Button>
-
-                                          <div className="flex justify-between items-start mb-2 pr-6">
-                                            <div>
-                                              <p className="font-medium">{selectedAddon.addon.name}</p>
-                                              <p className="text-xs text-muted-foreground">
-                                                ${selectedAddon.addon.price.toFixed(2)} each
-                                              </p>
-                                            </div>
-                                            <Badge variant="outline">
-                                              ${(selectedAddon.addon.price * selectedAddon.quantity).toFixed(2)}
-                                            </Badge>
-                                          </div>
-
-                                          <div className="flex items-center mt-2">
-                                            <Label className="text-xs mr-2">Quantity:</Label>
-                                            <Button
-                                              type="button"
-                                              variant="outline"
-                                              size="icon"
-                                              className="h-6 w-6"
-                                              onClick={() =>
-                                                updateAddonQuantity(product.id, selectedAddon.addon.id, -1)
-                                              }
-                                              disabled={selectedAddon.quantity <= 1}
-                                            >
-                                              <MinusCircle className="h-3 w-3" />
-                                            </Button>
-                                            <span className="mx-2 text-sm">{selectedAddon.quantity}</span>
-                                            <Button
-                                              type="button"
-                                              variant="outline"
-                                              size="icon"
-                                              className="h-6 w-6"
-                                              onClick={() => updateAddonQuantity(product.id, selectedAddon.addon.id, 1)}
-                                            >
-                                              <PlusCircle className="h-3 w-3" />
-                                            </Button>
-                                          </div>
-
-                                          <div className="mt-2">
-                                            <Label className="text-xs">Instructions:</Label>
-                                            <Textarea
-                                              placeholder={`Instructions for ${selectedAddon.addon.name}`}
-                                              className="mt-1 resize-none text-sm min-h-[60px]"
-                                              value={selectedAddon.notes}
-                                              onChange={(e) =>
-                                                updateAddonNotes(product.id, selectedAddon.addon.id, e.target.value)
-                                              }
-                                            />
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-
-                                  {/* Available Add-ons */}
-                                  <div>
-                                    <h4 className="text-sm font-medium mb-2">Available Add-ons:</h4>
-                                    <div className="space-y-2">
-                                      {applicableAddons
-                                        .filter((addon) => !productAddons.some((pa) => pa.addon.id === addon.id))
-                                        .map((addon) => (
-                                          <div
-                                            key={addon.id}
-                                            className="flex justify-between items-center p-2 border rounded-md hover:bg-muted/50"
-                                          >
-                                            <div>
-                                              <p className="font-medium text-sm">{addon.name}</p>
-                                              <p className="text-xs text-muted-foreground">{addon.description}</p>
-                                            </div>
-                                            <div className="flex items-center">
-                                              <span className="text-sm font-medium mr-2">
-                                                ${addon.price.toFixed(2)}
-                                              </span>
-                                              <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => addAddon(product.id, addon)}
-                                              >
-                                                <Plus className="h-4 w-4 mr-1" />
-                                                Add
-                                              </Button>
-                                            </div>
-                                          </div>
-                                        ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          </Accordion>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                  <CardFooter className="p-4 pt-0">
-                    <Button
-                      className="w-full"
-                      onClick={() => addToCart(product)}
-                      disabled={!quantities[product.id] || quantities[product.id] <= 0}
-                    >
-                      Add to Order
-                    </Button>
-                  </CardFooter>
-                </Card>
-              )
-            })}
-
-            {/* Loader for infinite scrolling */}
-            {!selectedEventId && hasMoreProducts && (
-              <div ref={productsLoaderRef} className="col-span-full py-4 flex justify-center">
-                {loadingProducts && <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Per-product ordering drawer */}
+      <OrderingDrawer
+        product={orderingProduct}
+        open={orderingProduct !== null}
+        onOpenChange={(open) => {
+          if (!open) setOrderingProduct(null)
+        }}
+        applicableAddons={
+          orderingProduct ? getApplicableAddons(orderingProduct) : []
+        }
+        initialQuantity={orderingCartItem?.quantity}
+        initialNotes={orderingCartItem?.notes}
+        initialAddons={orderingInitialAddons}
+        onSubmit={(data) => {
+          if (orderingProduct) addToCart(orderingProduct, data)
+        }}
+      />
     </main>
   )
 }
