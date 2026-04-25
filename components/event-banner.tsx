@@ -4,8 +4,8 @@ import { useState, useEffect } from "react"
 import { CalendarDays, MapPin, ArrowRight } from "lucide-react"
 import type { Event } from "@/types/shop-types"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { formatDate } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 interface EventBannerProps {
   event: Event
@@ -14,79 +14,89 @@ interface EventBannerProps {
 }
 
 export function EventBanner({ event, onSelectEvent, isSelected }: EventBannerProps) {
-  // Format the event date for display
   const displayDate = event.endDate
     ? `${formatDate(event.date)} - ${formatDate(event.endDate)}`
     : formatDate(event.date)
 
-  // Calculate if the event is upcoming, current, or past
   const [eventStatus, setEventStatus] = useState<"upcoming" | "current" | "past">("upcoming")
 
   useEffect(() => {
     const now = new Date()
     const eventDate = new Date(event.date)
     const eventEndDate = event.endDate ? new Date(event.endDate) : new Date(event.date)
-
-    // Add a day to end date to include the full day
     eventEndDate.setDate(eventEndDate.getDate() + 1)
 
-    if (now < eventDate) {
-      setEventStatus("upcoming")
-    } else if (now > eventEndDate) {
-      setEventStatus("past")
-    } else {
-      setEventStatus("current")
-    }
+    if (now < eventDate) setEventStatus("upcoming")
+    else if (now > eventEndDate) setEventStatus("past")
+    else setEventStatus("current")
   }, [event])
+
+  const isPast = eventStatus === "past"
+  const accent = isSelected ? "bg-brand-purple" : "bg-brand-pink"
 
   return (
     <div
-      className={`relative rounded-lg overflow-hidden shadow-md border ${isSelected ? "border-primary" : "border-muted"}`}
+      className={cn(
+        "relative overflow-hidden rounded-[24px] border-[3px] border-dashed bg-white",
+        isSelected ? "border-brand-purple" : "border-brand-pink/60",
+        "transition-transform duration-200 hover:-translate-y-0.5",
+      )}
     >
+      {/* Image with status pill */}
       <div className="relative">
         <img
           src={event.image || "/placeholder.svg?height=300&width=600"}
           alt={event.name}
-          className="w-full h-40 object-cover"
+          className="h-40 w-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex flex-col justify-end p-4">
-          <h3 className="text-white text-xl font-bold">{event.name}</h3>
-
-          {/* Event status badge */}
-          <div className="absolute top-2 right-2">
-            {eventStatus === "current" && <Badge className="bg-green-500">Happening Now</Badge>}
-            {eventStatus === "upcoming" && (
-              <Badge variant="outline" className="bg-black/50 text-white border-white">
-                Upcoming
-              </Badge>
-            )}
-            {eventStatus === "past" && (
-              <Badge variant="outline" className="bg-black/50 text-white border-white">
-                Past Event
-              </Badge>
-            )}
-          </div>
+        <div className="absolute top-3 right-3">
+          {eventStatus === "current" && (
+            <span className="inline-flex rounded-full bg-brand-mint px-3 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-white shadow">
+              Happening Now
+            </span>
+          )}
+          {eventStatus === "upcoming" && (
+            <span className="inline-flex rounded-full bg-brand-pink px-3 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-white shadow">
+              Upcoming
+            </span>
+          )}
+          {eventStatus === "past" && (
+            <span className="inline-flex rounded-full bg-brand-ink/70 px-3 py-1 text-[10px] font-display font-bold uppercase tracking-wider text-white shadow">
+              Past
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="p-4 bg-white">
-        <div className="flex items-center text-sm text-muted-foreground mb-2">
-          <CalendarDays className="h-4 w-4 mr-1" />
-          <span>{displayDate}</span>
+      <div className="p-4 text-center">
+        <h3 className="font-display font-extrabold uppercase tracking-wide text-lg text-brand-ink leading-tight">
+          {event.name}
+        </h3>
+
+        <div className="mt-2 space-y-1">
+          <p className="font-script text-lg text-brand-purple">{displayDate}</p>
+          <div className="flex items-center justify-center gap-1 text-xs uppercase tracking-wider text-brand-ink/70">
+            <MapPin className="h-3 w-3" />
+            <span>{event.location}</span>
+          </div>
         </div>
-        <div className="flex items-center text-sm text-muted-foreground mb-3">
-          <MapPin className="h-4 w-4 mr-1" />
-          <span>{event.location}</span>
-        </div>
-        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{event.description}</p>
+
+        {event.description && (
+          <p className="mt-2 line-clamp-2 text-xs text-brand-ink/60">{event.description}</p>
+        )}
+
         <Button
           onClick={() => onSelectEvent(event.id)}
-          variant={isSelected ? "default" : "outline"}
-          className="w-full"
-          disabled={eventStatus === "past"}
+          disabled={isPast}
+          className={cn(
+            "mt-4 w-full rounded-full font-display font-bold uppercase tracking-wider text-white",
+            "shadow-md hover:opacity-95",
+            isSelected ? "bg-brand-purple hover:bg-brand-purple" : "bg-brand-pink hover:bg-brand-pink",
+            isPast && "bg-brand-ink/40 hover:bg-brand-ink/40",
+          )}
         >
-          {isSelected ? "Currently Viewing" : eventStatus === "past" ? "Event Ended" : "View Event-Only Items"}
-          {!isSelected && eventStatus !== "past" && <ArrowRight className="ml-2 h-4 w-4" />}
+          {isSelected ? "Currently Viewing" : isPast ? "Event Ended" : "View Items"}
+          {!isSelected && !isPast && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
       </div>
     </div>
