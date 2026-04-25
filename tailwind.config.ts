@@ -10,9 +10,25 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			script: ['var(--font-script)', 'cursive'],
+  			display: ['var(--font-display)', 'system-ui', 'sans-serif'],
+  			sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+  		},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
+  			brand: {
+  				blush: 'hsl(var(--brand-blush))',
+  				'blush-deep': 'hsl(var(--brand-blush-deep))',
+  				pink: 'hsl(var(--brand-pink))',
+  				'pink-soft': 'hsl(var(--brand-pink-soft))',
+  				purple: 'hsl(var(--brand-purple))',
+  				'purple-soft': 'hsl(var(--brand-purple-soft))',
+  				mint: 'hsl(var(--brand-mint))',
+  				cream: 'hsl(var(--brand-cream))',
+  				ink: 'hsl(var(--brand-ink))',
+  			},
   			card: {
   				DEFAULT: 'hsl(var(--card))',
   				foreground: 'hsl(var(--card-foreground))'
